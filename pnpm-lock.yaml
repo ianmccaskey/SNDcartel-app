@@ -197,6 +197,9 @@ importers:
       react-native-webview:
         specifier: latest
         version: 13.16.0(react-native@0.83.1(@babel/core@7.28.6)(@types/react@19.0.0)(react@19.0.0))(react@19.0.0)
+      react-native-worklets:
+        specifier: latest
+        version: 0.7.1(@babel/core@7.28.6)(react-native@0.83.1(@babel/core@7.28.6)(@types/react@19.0.0)(react@19.0.0))(react@19.0.0)
       react-resizable-panels:
         specifier: ^2.1.7
         version: 2.1.7(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
