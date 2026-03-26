@@ -1,37 +1,61 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { storage } from "@/lib/storage"
-import type { GroupBuy, Order } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { AccountWarningBanner } from "@/components/account-warning-banner"
 import Link from "next/link"
 
-// Mock data for active group buys
-const mockGroupBuys: GroupBuy[] = [
-  {
-    id: "1",
-    title: "SND NEVER DIE Inaugural Group Buy",
-    endDate: "2024-02-15",
-    description: "High quality peptides at group pricing - USDC-ERC20 only",
-  },
-  {
-    id: "2",
-    title: "TB-500 Group Buy",
-    endDate: "2024-01-20",
-    description: "Premium TB-500 peptide with testing certificates",
-  },
-]
+interface ActiveGroupBuy {
+  id: string
+  title: string
+  description: string
+  endDate: string
+  totalKitsOrdered: number
+  totalMoqGoal: number
+  imageUrl: string | null
+}
+
+function GroupBuySkeleton() {
+  return (
+    <div className="border rounded-lg p-4 animate-pulse">
+      <div className="flex items-start justify-between mb-2">
+        <div className="h-4 bg-white/10 rounded w-48" />
+        <div className="h-5 bg-white/10 rounded w-24" />
+      </div>
+      <div className="h-3 bg-white/10 rounded w-full mb-1" />
+      <div className="h-3 bg-white/10 rounded w-3/4 mb-3" />
+      <div className="h-8 bg-white/10 rounded w-24" />
+    </div>
+  )
+}
 
 export default function HomePage() {
   const [isAccountComplete, setIsAccountComplete] = useState(false)
-  const [orders, setOrders] = useState<Order[]>([])
+  const [groupBuys, setGroupBuys] = useState<ActiveGroupBuy[]>([])
+  const [loadingGroupBuys, setLoadingGroupBuys] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    setIsAccountComplete(storage.isAccountComplete())
-    setOrders(storage.getOrders())
+    // Check profile completeness from API
+    fetch("/api/users/me")
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data?.profileComplete) setIsAccountComplete(true)
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetch("/api/group-buys")
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load group buys")
+        return res.json()
+      })
+      .then((data) => setGroupBuys(data))
+      .catch((err) => setError(err.message))
+      .finally(() => setLoadingGroupBuys(false))
   }, [])
 
   return (
@@ -60,20 +84,52 @@ export default function HomePage() {
               <CardTitle>Active Group Buys</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {mockGroupBuys.map((buy) => (
-                <div key={buy.id} className="border rounded-lg p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <h3 className="font-medium">{buy.title}</h3>
-                    <Badge variant="outline">Ends {new Date(buy.endDate).toLocaleDateString()}</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-3">{buy.description}</p>
-                  <Link href={`/group-buy/${buy.id}`}>
-                    <Button size="sm" className="bg-yellow-600 hover:bg-yellow-700" disabled={!isAccountComplete}>
-                      Participate
-                    </Button>
-                  </Link>
-                </div>
-              ))}
+              {loadingGroupBuys ? (
+                <>
+                  <GroupBuySkeleton />
+                  <GroupBuySkeleton />
+                </>
+              ) : error ? (
+                <p className="text-sm text-red-400">{error}</p>
+              ) : groupBuys.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No active group buys at this time.</p>
+              ) : (
+                groupBuys.map((buy) => {
+                  const progressPct = buy.totalMoqGoal > 0
+                    ? Math.min(100, Math.round((buy.totalKitsOrdered / buy.totalMoqGoal) * 100))
+                    : 0
+                  return (
+                    <div key={buy.id} className="border rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <h3 className="font-medium">{buy.title}</h3>
+                        {buy.endDate && (
+                          <Badge variant="outline">
+                            Ends {new Date(buy.endDate).toLocaleDateString()}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2">{buy.description}</p>
+                      {/* MOQ progress */}
+                      <div className="mb-3">
+                        <div className="relative h-1.5 rounded-full bg-black/30 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${progressPct >= 100 ? "bg-green-500" : "bg-yellow-500"}`}
+                            style={{ width: `${progressPct}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {buy.totalKitsOrdered} / {buy.totalMoqGoal} kits ({progressPct}%)
+                        </p>
+                      </div>
+                      <Link href={`/group-buy/${buy.id}`}>
+                        <Button size="sm" className="bg-yellow-600 hover:bg-yellow-700" disabled={!isAccountComplete}>
+                          Participate
+                        </Button>
+                      </Link>
+                    </div>
+                  )
+                })
+              )}
             </CardContent>
           </Card>
 
@@ -82,30 +138,7 @@ export default function HomePage() {
               <CardTitle>Completed Group Buys</CardTitle>
             </CardHeader>
             <CardContent>
-              {orders.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No completed group buys yet.</p>
-              ) : (
-                <div className="space-y-3">
-                  {orders.slice(0, 3).map((order) => (
-                    <div key={order.id} className="border rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium">{order.groupBuyTitle}</span>
-                        <Badge variant="secondary" className="text-xs">
-                          {order.status}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">${order.totalCost.toFixed(2)}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {orders.length > 3 && (
-                <Link href="/account">
-                  <Button variant="link" size="sm" className="mt-3 p-0">
-                    View all orders
-                  </Button>
-                </Link>
-              )}
+              <p className="text-sm text-muted-foreground">No completed group buys yet.</p>
             </CardContent>
           </Card>
         </div>

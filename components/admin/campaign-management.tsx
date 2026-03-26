@@ -17,8 +17,7 @@ import type {
   CryptoPaymentOption,
   ShippingBoxSize,
 } from "@/lib/admin-types"
-import { Plus, X, Upload, ChevronDown, ChevronUp, Copy, AlertTriangle } from "lucide-react"
-import { loadFromStorage, saveToStorage } from "@/lib/storage"
+import { Plus, X, Upload, ChevronDown, ChevronUp, Copy, AlertTriangle, Loader2 } from "lucide-react"
 
 const CRYPTO_OPTIONS = ["USDT (Ethereum)", "USDC (Ethereum)", "USDT (Solana)", "USDC (Solana)", "ETH", "SOL", "BTC"]
 
@@ -39,7 +38,6 @@ const cmToInches = (cm: number): number => cm / 2.54
 
 const calculateVolume = (length: number, width: number, height: number, unit: "in" | "cm"): number => {
   if (unit === "cm") {
-    // Convert each dimension to inches first, then calculate volume
     return cmToInches(length) * cmToInches(width) * cmToInches(height)
   }
   return length * width * height
@@ -50,14 +48,10 @@ export const findSmallestFittingBox = (
   boxSizes: ShippingBoxSize[],
   paddingFactor = 0,
 ): ShippingBoxSize | null => {
-  // Apply padding factor to required volume
   const adjustedVolume = requiredVolume * (1 + paddingFactor / 100)
-
-  // Filter active boxes that can fit the volume, sorted by volume ascending
   const fittingBoxes = boxSizes
     .filter((box) => box.isActive && box.volume >= adjustedVolume)
     .sort((a, b) => a.volume - b.volume)
-
   return fittingBoxes.length > 0 ? fittingBoxes[0] : null
 }
 
@@ -71,177 +65,310 @@ export function CampaignManagement() {
     shipping: true,
     fees: true,
   })
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    const storedCampaigns = loadFromStorage<Campaign[]>("admin_campaigns") || []
-    setCampaigns(storedCampaigns)
-    if (storedCampaigns.length > 0 && !selectedCampaign) {
-      setSelectedCampaign(storedCampaigns[0])
+  // ── Data loading ─────────────────────────────────────────────────────────
+
+  const loadCampaigns = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/admin/group-buys")
+      if (!res.ok) throw new Error(await res.text())
+      const data: Campaign[] = await res.json()
+      setCampaigns(data)
+      if (data.length > 0 && !selectedCampaign) {
+        setSelectedCampaign(data[0])
+      }
+    } catch (e) {
+      setError("Failed to load campaigns")
+      console.error(e)
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
+    loadCampaigns()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const saveCampaigns = (updatedCampaigns: Campaign[]) => {
-    setCampaigns(updatedCampaigns)
-    saveToStorage("admin_campaigns", updatedCampaigns)
-  }
+  // ── Campaign CRUD ─────────────────────────────────────────────────────────
 
-  const createNewCampaign = () => {
-    const newCampaign: Campaign = {
-      id: Date.now().toString(),
-      name: "",
-      creatorDisplayName: "",
-      description: "",
-      status: "draft",
-      totalMOQ: 1,
-      acceptedPayments: [],
-      adminFee: 0,
-      shippingFee: 0,
-      finalPaymentInfo: {},
-      cryptoFeeOptions: [],
-      products: [],
-      boxSizes: [], // Initialize boxSizes
-      defaultPaddingFactor: 0, // Initialize defaultPaddingFactor
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+  const createNewCampaign = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/admin/group-buys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Untitled Campaign" }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      const newCampaign: Campaign = await res.json()
+      setCampaigns((prev) => [...prev, newCampaign])
+      setSelectedCampaign(newCampaign)
+    } catch (e) {
+      setError("Failed to create campaign")
+      console.error(e)
+    } finally {
+      setLoading(false)
     }
-    const updated = [...campaigns, newCampaign]
-    saveCampaigns(updated)
-    setSelectedCampaign(newCampaign)
   }
 
-  const updateCampaign = (updates: Partial<Campaign>) => {
+  const saveCampaign = async () => {
     if (!selectedCampaign) return
-    const updated = campaigns.map((c) =>
-      c.id === selectedCampaign.id ? { ...c, ...updates, updatedAt: new Date().toISOString() } : c,
-    )
-    saveCampaigns(updated)
-    setSelectedCampaign({ ...selectedCampaign, ...updates })
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/group-buys/${selectedCampaign.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: selectedCampaign.name,
+          creatorDisplayName: selectedCampaign.creatorDisplayName,
+          description: selectedCampaign.description,
+          imageUrl: selectedCampaign.imageUrl ?? null,
+          deadline: selectedCampaign.deadline ?? null,
+          publicLaunchTime: selectedCampaign.publicLaunchTime ?? null,
+          adminFee: selectedCampaign.adminFee,
+          shippingFee: selectedCampaign.shippingFee,
+          acceptedPayments: selectedCampaign.acceptedPayments,
+          metadata: {
+            finalPaymentInfo: selectedCampaign.finalPaymentInfo,
+            cryptoFeeOptions: selectedCampaign.cryptoFeeOptions,
+            boxSizes: selectedCampaign.boxSizes ?? [],
+            defaultPaddingFactor: selectedCampaign.defaultPaddingFactor ?? 0,
+          },
+        }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      const updated: Campaign = await res.json()
+      setCampaigns((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+      setSelectedCampaign(updated)
+    } catch (e) {
+      setError("Failed to save campaign")
+      console.error(e)
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const deleteCampaign = () => {
+  const deleteCampaign = async () => {
     if (!selectedCampaign) return
-    const updated = campaigns.filter((c) => c.id !== selectedCampaign.id)
-    saveCampaigns(updated)
-    setSelectedCampaign(updated[0] || null)
+    if (!confirm(`Delete campaign "${selectedCampaign.name}"? This cannot be undone.`)) return
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/group-buys/${selectedCampaign.id}`, { method: "DELETE" })
+      if (!res.ok) throw new Error(await res.text())
+      const updated = campaigns.filter((c) => c.id !== selectedCampaign.id)
+      setCampaigns(updated)
+      setSelectedCampaign(updated[0] || null)
+    } catch (e) {
+      setError("Failed to delete campaign")
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
   }
+
+  const changeStatus = async (newStatus: "active" | "closed" | "fulfilled") => {
+    if (!selectedCampaign) return
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/group-buys/${selectedCampaign.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error ?? "Status change failed")
+      }
+      const updated = { ...selectedCampaign, status: newStatus }
+      setCampaigns((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+      setSelectedCampaign(updated)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to change status")
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // ── Local field updates (optimistic, saved on "Save Campaign") ────────────
 
   const handleCampaignChange = (id: string) => {
     setSelectedCampaign(campaigns.find((c) => c.id === id) || null)
   }
 
-  // Payment methods
+  const updateLocal = (updates: Partial<Campaign>) => {
+    if (!selectedCampaign) return
+    const updated = { ...selectedCampaign, ...updates }
+    setSelectedCampaign(updated)
+    setCampaigns((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+  }
+
+  // ── Accepted payments ─────────────────────────────────────────────────────
+
   const addAcceptedPayment = () => {
     if (!selectedCampaign) return
     const newPayment: AcceptedPayment = {
-      id: Date.now().toString(),
+      id: `local-${Date.now()}`,
       token: "USDT (Ethereum)",
       walletAddress: "",
     }
-    const currentPayments = selectedCampaign.acceptedPayments || []
-    updateCampaign({
-      acceptedPayments: [...currentPayments, newPayment],
-    })
+    updateLocal({ acceptedPayments: [...(selectedCampaign.acceptedPayments || []), newPayment] })
   }
 
   const updateAcceptedPayment = (id: string, updates: Partial<AcceptedPayment>) => {
     if (!selectedCampaign) return
-    const currentPayments = selectedCampaign.acceptedPayments || []
-    const updatedPayments = currentPayments.map((p) => (p.id === id ? { ...p, ...updates } : p))
-    updateCampaign({ acceptedPayments: updatedPayments })
+    const updated = (selectedCampaign.acceptedPayments || []).map((p) => (p.id === id ? { ...p, ...updates } : p))
+    updateLocal({ acceptedPayments: updated })
   }
 
   const removeAcceptedPayment = (id: string) => {
     if (!selectedCampaign) return
-    const currentPayments = selectedCampaign.acceptedPayments || []
-    updateCampaign({
-      acceptedPayments: currentPayments.filter((p) => p.id !== id),
-    })
+    updateLocal({ acceptedPayments: (selectedCampaign.acceptedPayments || []).filter((p) => p.id !== id) })
   }
 
-  // Crypto fee options
+  // ── Crypto fee options ────────────────────────────────────────────────────
+
   const addCryptoFeeOption = () => {
     if (!selectedCampaign) return
     const newOption: CryptoPaymentOption = {
-      id: Date.now().toString(),
+      id: `local-${Date.now()}`,
       token: "USDT (Ethereum)",
       walletAddress: "",
     }
-    const currentOptions = selectedCampaign.cryptoFeeOptions || []
-    updateCampaign({
-      cryptoFeeOptions: [...currentOptions, newOption],
-    })
+    updateLocal({ cryptoFeeOptions: [...(selectedCampaign.cryptoFeeOptions || []), newOption] })
   }
 
   const updateCryptoFeeOption = (id: string, updates: Partial<CryptoPaymentOption>) => {
     if (!selectedCampaign) return
-    const currentOptions = selectedCampaign.cryptoFeeOptions || []
-    const updatedOptions = currentOptions.map((o) => (o.id === id ? { ...o, ...updates } : o))
-    updateCampaign({ cryptoFeeOptions: updatedOptions })
+    const updated = (selectedCampaign.cryptoFeeOptions || []).map((o) => (o.id === id ? { ...o, ...updates } : o))
+    updateLocal({ cryptoFeeOptions: updated })
   }
 
   const removeCryptoFeeOption = (id: string) => {
     if (!selectedCampaign) return
-    const currentOptions = selectedCampaign.cryptoFeeOptions || []
-    updateCampaign({
-      cryptoFeeOptions: currentOptions.filter((o) => o.id !== id),
-    })
+    updateLocal({ cryptoFeeOptions: (selectedCampaign.cryptoFeeOptions || []).filter((o) => o.id !== id) })
   }
 
-  // Products
-  const addProduct = () => {
+  // ── Products (immediate API calls) ───────────────────────────────────────
+
+  const addProduct = async () => {
     if (!selectedCampaign) return
-    const newProduct: CampaignProduct = {
-      id: Date.now().toString(),
-      peptideName: "",
-      massDosage: "",
-      moq: 1,
-      price: 0,
-      orderedCount: 0,
-      manualAdjustment: 0,
-      dimensions: { length: 0, width: 0, height: 0, weight: 0 },
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/group-buys/${selectedCampaign.id}/products`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ peptideName: "", massDosage: "", moq: 1, price: 0 }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      const newProduct: CampaignProduct = await res.json()
+      const updatedProducts = [...(selectedCampaign.products || []), newProduct]
+      const totalMOQ = updatedProducts.reduce((s, p) => s + p.moq, 0) || 1
+      updateLocal({ products: updatedProducts, totalMOQ })
+    } catch (e) {
+      setError("Failed to add product")
+      console.error(e)
+    } finally {
+      setLoading(false)
     }
-    const currentProducts = selectedCampaign.products || []
-    updateCampaign({
-      products: [...currentProducts, newProduct],
-    })
   }
 
-  const updateProduct = (id: string, updates: Partial<CampaignProduct>) => {
+  const updateProduct = async (id: string, updates: Partial<CampaignProduct>) => {
     if (!selectedCampaign) return
-    const currentProducts = selectedCampaign.products || []
-    const updatedProducts = currentProducts.map((p) => (p.id === id ? { ...p, ...updates } : p))
-    const totalMOQ = updatedProducts.reduce((sum, p) => sum + p.moq, 0)
-    updateCampaign({ products: updatedProducts, totalMOQ })
+    // Optimistic local update
+    const updatedProducts = (selectedCampaign.products || []).map((p) => (p.id === id ? { ...p, ...updates } : p))
+    const totalMOQ = updatedProducts.reduce((s, p) => s + p.moq, 0) || 1
+    updateLocal({ products: updatedProducts, totalMOQ })
   }
 
-  const removeProduct = (id: string) => {
+  const saveProductToApi = async (product: CampaignProduct) => {
     if (!selectedCampaign) return
-    const currentProducts = selectedCampaign.products || []
-    const updatedProducts = currentProducts.filter((p) => p.id !== id)
-    const totalMOQ = updatedProducts.reduce((sum, p) => sum + p.moq, 0) || 1
-    updateCampaign({ products: updatedProducts, totalMOQ })
+    // Fire-and-forget product PATCH (called when a product field loses focus via a blur handler if desired)
+    // For now products are persisted via "Save Campaign" → PATCH /group-buys/:id
+    // Individual product PATCH is available if needed
+    try {
+      await fetch(`/api/admin/group-buys/${selectedCampaign.id}/products/${product.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          peptideName: product.peptideName,
+          massDosage: product.massDosage,
+          moq: product.moq,
+          price: product.price,
+          manualAdjustment: product.manualAdjustment,
+          dimensions: product.dimensions,
+        }),
+      })
+    } catch (e) {
+      console.error("Failed to save product:", e)
+    }
   }
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const removeProduct = async (id: string) => {
+    if (!selectedCampaign) return
+    // Optimistic remove
+    const updatedProducts = (selectedCampaign.products || []).filter((p) => p.id !== id)
+    const totalMOQ = updatedProducts.reduce((s, p) => s + p.moq, 0) || 1
+    updateLocal({ products: updatedProducts, totalMOQ })
+
+    try {
+      const res = await fetch(`/api/admin/group-buys/${selectedCampaign.id}/products/${id}`, { method: "DELETE" })
+      if (!res.ok) throw new Error(await res.text())
+    } catch (e) {
+      setError("Failed to remove product")
+      console.error(e)
+      // Reload to restore correct state
+      await loadCampaigns()
+    }
+  }
+
+  // ── Image upload ──────────────────────────────────────────────────────────
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        updateCampaign({ imageUrl: reader.result as string })
+    if (!file || !selectedCampaign) return
+
+    const formData = new FormData()
+    formData.append("file", file)
+
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/admin/uploads", { method: "POST", body: formData })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error ?? "Upload failed")
       }
-      reader.readAsDataURL(file)
+      const { url } = await res.json()
+      updateLocal({ imageUrl: url })
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Image upload failed")
+      console.error(e)
+    } finally {
+      setLoading(false)
+      // Reset input so same file can be re-uploaded
+      if (fileInputRef.current) fileInputRef.current.value = ""
     }
   }
 
-  const toggleSection = (section: keyof typeof expandedSections) => {
-    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }))
-  }
+  // ── Box sizes ─────────────────────────────────────────────────────────────
 
   const addBoxSize = () => {
     if (!selectedCampaign) return
     const newBoxSize: ShippingBoxSize = {
-      id: Date.now().toString(),
+      id: `local-${Date.now()}`,
       name: "",
       length: 0,
       width: 0,
@@ -251,19 +378,14 @@ export function CampaignManagement() {
       isActive: true,
       notes: "",
     }
-    const currentBoxSizes = selectedCampaign.boxSizes || []
-    updateCampaign({
-      boxSizes: [...currentBoxSizes, newBoxSize],
-    })
+    updateLocal({ boxSizes: [...(selectedCampaign.boxSizes || []), newBoxSize] })
   }
 
   const updateBoxSize = (id: string, updates: Partial<ShippingBoxSize>) => {
     if (!selectedCampaign) return
-    const currentBoxSizes = selectedCampaign.boxSizes || []
-    const updatedBoxSizes = currentBoxSizes.map((box) => {
+    const updatedBoxSizes = (selectedCampaign.boxSizes || []).map((box) => {
       if (box.id !== id) return box
       const updatedBox = { ...box, ...updates }
-      // Recalculate volume if dimensions or unit changed
       if (
         updates.length !== undefined ||
         updates.width !== undefined ||
@@ -274,29 +396,28 @@ export function CampaignManagement() {
       }
       return updatedBox
     })
-    // Sort by volume ascending
     updatedBoxSizes.sort((a, b) => a.volume - b.volume)
-    updateCampaign({ boxSizes: updatedBoxSizes })
+    updateLocal({ boxSizes: updatedBoxSizes })
   }
 
   const removeBoxSize = (id: string) => {
     if (!selectedCampaign) return
-    const currentBoxSizes = selectedCampaign.boxSizes || []
-    updateCampaign({
-      boxSizes: currentBoxSizes.filter((box) => box.id !== id),
-    })
+    updateLocal({ boxSizes: (selectedCampaign.boxSizes || []).filter((box) => box.id !== id) })
   }
 
   const duplicateBoxSize = (box: ShippingBoxSize) => {
     if (!selectedCampaign) return
     const duplicatedBox: ShippingBoxSize = {
       ...box,
-      id: Date.now().toString(),
+      id: `local-${Date.now()}`,
       name: `${box.name} (Copy)`,
     }
-    const currentBoxSizes = selectedCampaign.boxSizes || []
-    const updatedBoxSizes = [...currentBoxSizes, duplicatedBox].sort((a, b) => a.volume - b.volume)
-    updateCampaign({ boxSizes: updatedBoxSizes })
+    const updatedBoxSizes = [...(selectedCampaign.boxSizes || []), duplicatedBox].sort((a, b) => a.volume - b.volume)
+    updateLocal({ boxSizes: updatedBoxSizes })
+  }
+
+  const toggleSection = (section: keyof typeof expandedSections) => {
+    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }))
   }
 
   const SectionHeader = ({
@@ -332,18 +453,27 @@ export function CampaignManagement() {
 
   return (
     <div className="space-y-6 pb-6">
+      {/* Error banner */}
+      {error && (
+        <div className="bg-red-900/40 border border-red-500/40 rounded-lg px-4 py-3 flex items-center justify-between">
+          <span className="text-red-300 text-sm">{error}</span>
+          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-200 ml-4">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Campaign Selector */}
       <Card className="bg-black/60 backdrop-blur-md border-white/10 p-6">
         <div className="admin-campaign-header">
           <div className="flex flex-col gap-4">
-            {/* Heading and action buttons row */}
             <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-0">
               <Label className="text-white font-medium whitespace-nowrap">Select Campaign:</Label>
-              {/* Action buttons - appear next to heading on desktop, below on mobile */}
               <div className="flex gap-2 md:ml-auto order-2 md:order-none">
                 {selectedCampaign && (
                   <Button
                     onClick={deleteCampaign}
+                    disabled={loading}
                     variant="outline"
                     className="admin-campaign-btn-delete border-red-500 text-red-500 hover:bg-red-500/10 bg-transparent"
                   >
@@ -352,16 +482,16 @@ export function CampaignManagement() {
                 )}
                 <Button
                   onClick={createNewCampaign}
+                  disabled={loading}
                   className="admin-campaign-btn-new bg-yellow-600 hover:bg-yellow-700 text-black font-semibold"
                 >
-                  <Plus className="w-4 h-4 mr-2" />
+                  {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
                   New Campaign
                 </Button>
               </div>
             </div>
 
-            {/* Dropdown and status - appears below heading on mobile */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <Select value={selectedCampaign?.id || ""} onValueChange={handleCampaignChange}>
                 <SelectTrigger className="bg-black/40 border-white/20 text-white">
                   <SelectValue placeholder="Select a campaign" />
@@ -375,46 +505,79 @@ export function CampaignManagement() {
                 </SelectContent>
               </Select>
               {selectedCampaign && (
-                <Badge
-                  className={
-                    selectedCampaign.status === "active"
-                      ? "bg-green-600"
-                      : selectedCampaign.status === "closed"
-                        ? "bg-red-600"
-                        : "bg-gray-600"
-                  }
-                >
-                  {selectedCampaign.status}
-                </Badge>
+                <>
+                  <Badge
+                    className={
+                      selectedCampaign.status === "active"
+                        ? "bg-green-600"
+                        : selectedCampaign.status === "closed"
+                          ? "bg-red-600"
+                          : selectedCampaign.status === "fulfilled"
+                            ? "bg-blue-600"
+                            : "bg-gray-600"
+                    }
+                  >
+                    {selectedCampaign.status}
+                  </Badge>
+                  {/* Status action buttons */}
+                  {selectedCampaign.status === "draft" && (
+                    <Button
+                      onClick={() => changeStatus("active")}
+                      disabled={loading}
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white text-xs"
+                    >
+                      Publish
+                    </Button>
+                  )}
+                  {selectedCampaign.status === "active" && (
+                    <Button
+                      onClick={() => changeStatus("closed")}
+                      disabled={loading}
+                      size="sm"
+                      className="bg-orange-600 hover:bg-orange-700 text-white text-xs"
+                    >
+                      Close
+                    </Button>
+                  )}
+                  {selectedCampaign.status === "closed" && (
+                    <Button
+                      onClick={() => changeStatus("fulfilled")}
+                      disabled={loading}
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs"
+                    >
+                      Mark Fulfilled
+                    </Button>
+                  )}
+                </>
               )}
             </div>
           </div>
         </div>
       </Card>
 
-      {/* Component-scoped CSS for campaign header and crypto dropdown */}
+      {/* Component-scoped CSS */}
       <style jsx>{`
         .admin-campaign-header {
           /* Desktop layout unchanged */
         }
-        
-        /* Mobile/tablet specific adjustments */
+
         @media (max-width: 768px) {
           .admin-campaign-header .admin-campaign-btn-delete,
           .admin-campaign-header .admin-campaign-btn-new {
-            /* Reduce button height and padding for mobile/tablet */
             padding: 0.375rem 0.875rem;
             font-size: 0.875rem;
             height: auto;
             min-height: 2rem;
           }
-          
+
           .admin-campaign-header .admin-campaign-btn-new svg {
             width: 0.875rem;
             height: 0.875rem;
           }
         }
-        
+
         .accepted-payments-crypto-select [role="option"] {
           color: #ffffff !important;
           background-color: #000000 !important;
@@ -441,22 +604,28 @@ export function CampaignManagement() {
         }
       `}</style>
 
+      {loading && campaigns.length === 0 && (
+        <div className="flex items-center justify-center py-12 text-gray-400">
+          <Loader2 className="w-6 h-6 animate-spin mr-3" />
+          Loading campaigns...
+        </div>
+      )}
+
       {selectedCampaign && (
         <>
-          {/* Create New Campaign Section */}
+          {/* Basic Info Section */}
           <Card className="bg-black/60 backdrop-blur-md border-white/10 overflow-hidden">
             <SectionHeader title="Create New Campaign" section="basic" />
             {expandedSections.basic && (
               <CardContent className="p-6 space-y-6">
                 <p className="text-gray-400 text-sm -mt-2">Fill in the details for your new group buy.</p>
 
-                {/* Title and Creator Name */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-white font-medium">Campaign Title</Label>
                     <Input
                       value={selectedCampaign.name}
-                      onChange={(e) => updateCampaign({ name: e.target.value })}
+                      onChange={(e) => updateLocal({ name: e.target.value })}
                       className="bg-black/40 border-white/20 text-white placeholder:text-gray-500"
                       placeholder="Enter campaign title"
                     />
@@ -465,32 +634,32 @@ export function CampaignManagement() {
                     <Label className="text-white font-medium">Creator Display Name</Label>
                     <Input
                       value={selectedCampaign.creatorDisplayName}
-                      onChange={(e) => updateCampaign({ creatorDisplayName: e.target.value })}
+                      onChange={(e) => updateLocal({ creatorDisplayName: e.target.value })}
                       className="bg-black/40 border-white/20 text-white placeholder:text-gray-500"
                       placeholder="e.g. John D."
                     />
                   </div>
                 </div>
 
-                {/* Description */}
                 <div className="space-y-2">
                   <Label className="text-white font-medium">Description</Label>
                   <Textarea
                     value={selectedCampaign.description}
-                    onChange={(e) => updateCampaign({ description: e.target.value })}
+                    onChange={(e) => updateLocal({ description: e.target.value })}
                     className="bg-black/40 border-white/20 text-white placeholder:text-gray-500 min-h-[100px] resize-y"
                     placeholder="Describe your group buy..."
                   />
                 </div>
 
-                {/* Campaign Image Upload */}
                 <div className="space-y-2">
                   <Label className="text-white font-medium">Campaign Image</Label>
                   <div
                     onClick={() => fileInputRef.current?.click()}
                     className="border-2 border-dashed border-white/20 rounded-lg p-8 flex flex-col items-center justify-center cursor-pointer hover:border-white/30 transition-colors min-h-[200px] bg-black/20"
                   >
-                    {selectedCampaign.imageUrl ? (
+                    {loading ? (
+                      <Loader2 className="w-8 h-8 text-gray-500 animate-spin" />
+                    ) : selectedCampaign.imageUrl ? (
                       <img
                         src={selectedCampaign.imageUrl || "/placeholder.svg"}
                         alt="Campaign"
@@ -502,7 +671,7 @@ export function CampaignManagement() {
                         <p className="text-gray-400">
                           <span className="text-yellow-500">Click to upload</span> or drag and drop
                         </p>
-                        <p className="text-gray-500 text-sm mt-1">PNG, JPG, GIF</p>
+                        <p className="text-gray-500 text-sm mt-1">PNG, JPG, GIF, WebP · max 5MB</p>
                       </>
                     )}
                   </div>
@@ -515,7 +684,6 @@ export function CampaignManagement() {
                   />
                 </div>
 
-                {/* MOQ and Deadline */}
                 <div className="space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-6">
                   <div className="flex flex-row md:flex-col gap-4 md:gap-2 items-start md:items-start justify-between md:justify-start">
                     <div className="flex flex-col gap-1">
@@ -533,19 +701,18 @@ export function CampaignManagement() {
                     <Input
                       type="date"
                       value={selectedCampaign.deadline || ""}
-                      onChange={(e) => updateCampaign({ deadline: e.target.value })}
+                      onChange={(e) => updateLocal({ deadline: e.target.value })}
                       className="bg-black/40 border-white/20 text-white w-32 md:w-full"
                     />
                   </div>
                 </div>
 
-                {/* Public Launch Time */}
                 <div className="space-y-2">
                   <Label className="text-white font-medium">Public Launch Time (Optional)</Label>
                   <Input
                     type="datetime-local"
                     value={selectedCampaign.publicLaunchTime || ""}
-                    onChange={(e) => updateCampaign({ publicLaunchTime: e.target.value })}
+                    onChange={(e) => updateLocal({ publicLaunchTime: e.target.value })}
                     className="bg-black/40 border-white/20 text-white"
                   />
                   <p className="text-gray-500 text-sm">
@@ -594,7 +761,6 @@ export function CampaignManagement() {
                         <X className="w-5 h-5" />
                       </Button>
                     </div>
-
                     <div className="space-y-2">
                       <Label className="text-white font-medium">Payout Wallet Address</Label>
                       <Input
@@ -700,78 +866,36 @@ export function CampaignManagement() {
                       </div>
                     </div>
 
-                    {/* Product Dimensions Section */}
+                    {/* Product Dimensions */}
                     <div className="border-t border-white/10 pt-4 space-y-4">
                       <Label className="text-white font-medium text-sm">
                         Product Dimensions (for fulfillment box calculation)
                       </Label>
                       <div className="grid grid-cols-4 gap-3">
-                        <div className="space-y-2">
-                          <Label className="text-gray-400 text-xs h-5">Length (in)</Label>
-                          <Input
-                            type="number"
-                            value={product.dimensions?.length || ""}
-                            onChange={(e) =>
-                              updateProduct(product.id, {
-                                dimensions: {
-                                  ...product.dimensions,
-                                  length: Number.parseFloat(e.target.value) || 0,
-                                  width: product.dimensions?.width || 0,
-                                  height: product.dimensions?.height || 0,
-                                  weight: product.dimensions?.weight || 0,
-                                },
-                              })
-                            }
-                            className="bg-black/40 border-white/20 text-white text-sm h-10"
-                            placeholder="0"
-                            min="0"
-                            step="0.1"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-gray-400 text-xs h-5">Width (in)</Label>
-                          <Input
-                            type="number"
-                            value={product.dimensions?.width || ""}
-                            onChange={(e) =>
-                              updateProduct(product.id, {
-                                dimensions: {
-                                  ...product.dimensions,
-                                  length: product.dimensions?.length || 0,
-                                  width: Number.parseFloat(e.target.value) || 0,
-                                  height: product.dimensions?.height || 0,
-                                  weight: product.dimensions?.weight || 0,
-                                },
-                              })
-                            }
-                            className="bg-black/40 border-white/20 text-white text-sm h-10"
-                            placeholder="0"
-                            min="0"
-                            step="0.1"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-gray-400 text-xs h-5">Height (in)</Label>
-                          <Input
-                            type="number"
-                            value={product.dimensions?.height || ""}
-                            onChange={(e) =>
-                              updateProduct(product.id, {
-                                dimensions: {
-                                  ...product.dimensions,
-                                  length: product.dimensions?.length || 0,
-                                  width: product.dimensions?.width || 0,
-                                  height: Number.parseFloat(e.target.value) || 0,
-                                  weight: product.dimensions?.weight || 0,
-                                },
-                              })
-                            }
-                            className="bg-black/40 border-white/20 text-white text-sm h-10"
-                            placeholder="0"
-                            min="0"
-                            step="0.1"
-                          />
-                        </div>
+                        {(["length", "width", "height"] as const).map((dim) => (
+                          <div key={dim} className="space-y-2">
+                            <Label className="text-gray-400 text-xs h-5 capitalize">{dim} (in)</Label>
+                            <Input
+                              type="number"
+                              value={product.dimensions?.[dim] || ""}
+                              onChange={(e) =>
+                                updateProduct(product.id, {
+                                  dimensions: {
+                                    length: product.dimensions?.length || 0,
+                                    width: product.dimensions?.width || 0,
+                                    height: product.dimensions?.height || 0,
+                                    weight: product.dimensions?.weight || 0,
+                                    [dim]: Number.parseFloat(e.target.value) || 0,
+                                  },
+                                })
+                              }
+                              className="bg-black/40 border-white/20 text-white text-sm h-10"
+                              placeholder="0"
+                              min="0"
+                              step="0.1"
+                            />
+                          </div>
+                        ))}
                         <div className="space-y-2">
                           <Label className="text-gray-400 text-xs h-5">Weight (oz)</Label>
                           <Input
@@ -780,7 +904,6 @@ export function CampaignManagement() {
                             onChange={(e) =>
                               updateProduct(product.id, {
                                 dimensions: {
-                                  ...product.dimensions,
                                   length: product.dimensions?.length || 0,
                                   width: product.dimensions?.width || 0,
                                   height: product.dimensions?.height || 0,
@@ -798,18 +921,21 @@ export function CampaignManagement() {
                     </div>
                   </div>
                 ))}
+
                 <Button
                   onClick={addProduct}
+                  disabled={loading}
                   variant="outline"
                   className="border-yellow-500 text-yellow-500 hover:bg-yellow-500/10 bg-transparent"
                 >
-                  <Plus className="w-4 h-4 mr-2" />
+                  {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
                   Add Product
                 </Button>
               </CardContent>
             )}
           </Card>
 
+          {/* Shipping Box Sizes Section */}
           <Card className="bg-black/60 backdrop-blur-md border-white/10 overflow-hidden">
             <SectionHeader title="Shipping Box Sizes" section="shipping" count={safeBoxSizes.length} />
             {expandedSections.shipping && (
@@ -819,7 +945,6 @@ export function CampaignManagement() {
                   their volume.
                 </p>
 
-                {/* Default Padding Factor */}
                 <div className="flex items-center gap-4 p-4 bg-black/20 rounded-lg border border-white/10">
                   <div className="flex-1 space-y-2">
                     <Label className="text-white font-medium">Default Padding Factor (%)</Label>
@@ -833,7 +958,7 @@ export function CampaignManagement() {
                         type="number"
                         value={selectedCampaign.defaultPaddingFactor || 0}
                         onChange={(e) =>
-                          updateCampaign({ defaultPaddingFactor: Number.parseFloat(e.target.value) || 0 })
+                          updateLocal({ defaultPaddingFactor: Number.parseFloat(e.target.value) || 0 })
                         }
                         className="bg-black/40 border-white/20 text-white pr-8"
                         min="0"
@@ -845,7 +970,6 @@ export function CampaignManagement() {
                   </div>
                 </div>
 
-                {/* Box Size Rows */}
                 {safeBoxSizes.map((box, index) => (
                   <div
                     key={box.id}
@@ -853,7 +977,6 @@ export function CampaignManagement() {
                       box.isActive ? "border-white/20 bg-black/20" : "border-white/10 bg-black/10 opacity-60"
                     }`}
                   >
-                    {/* Row Header with Actions */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <span className="text-gray-500 text-sm font-mono">#{index + 1}</span>
@@ -890,7 +1013,6 @@ export function CampaignManagement() {
                       </div>
                     </div>
 
-                    {/* Box Name and Active Toggle */}
                     <div className="grid grid-cols-[1fr,auto] gap-4 items-end">
                       <div className="space-y-2">
                         <Label className="text-white font-medium">
@@ -922,58 +1044,34 @@ export function CampaignManagement() {
                       </div>
                     </div>
 
-                    {/* Dimensions */}
                     <div className="grid grid-cols-4 gap-3">
-                      <div className="space-y-2">
-                        <Label className="text-gray-400 text-xs">
-                          Length <span className="text-red-400">*</span>
-                        </Label>
-                        <Input
-                          type="number"
-                          value={box.length || ""}
-                          onChange={(e) => updateBoxSize(box.id, { length: Number.parseFloat(e.target.value) || 0 })}
-                          className="bg-black/40 border-white/20 text-white text-sm"
-                          placeholder="0"
-                          min="0.01"
-                          step="0.1"
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-gray-400 text-xs">
-                          Width <span className="text-red-400">*</span>
-                        </Label>
-                        <Input
-                          type="number"
-                          value={box.width || ""}
-                          onChange={(e) => updateBoxSize(box.id, { width: Number.parseFloat(e.target.value) || 0 })}
-                          className="bg-black/40 border-white/20 text-white text-sm"
-                          placeholder="0"
-                          min="0.01"
-                          step="0.1"
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-gray-400 text-xs">
-                          Height <span className="text-red-400">*</span>
-                        </Label>
-                        <Input
-                          type="number"
-                          value={box.height || ""}
-                          onChange={(e) => updateBoxSize(box.id, { height: Number.parseFloat(e.target.value) || 0 })}
-                          className="bg-black/40 border-white/20 text-white text-sm"
-                          placeholder="0"
-                          min="0.01"
-                          step="0.1"
-                          required
-                        />
-                      </div>
+                      {(["length", "width", "height"] as const).map((dim) => (
+                        <div key={dim} className="space-y-2">
+                          <Label className="text-gray-400 text-xs capitalize">
+                            {dim} <span className="text-red-400">*</span>
+                          </Label>
+                          <Input
+                            type="number"
+                            value={box[dim] || ""}
+                            onChange={(e) =>
+                              updateBoxSize(box.id, { [dim]: Number.parseFloat(e.target.value) || 0 })
+                            }
+                            className="bg-black/40 border-white/20 text-white text-sm"
+                            placeholder="0"
+                            min="0.01"
+                            step="0.1"
+                            required
+                          />
+                        </div>
+                      ))}
                       <div className="space-y-2">
                         <Label className="text-gray-400 text-xs">
                           Unit <span className="text-red-400">*</span>
                         </Label>
-                        <Select value={box.unit} onValueChange={(unit: "in" | "cm") => updateBoxSize(box.id, { unit })}>
+                        <Select
+                          value={box.unit}
+                          onValueChange={(unit: "in" | "cm") => updateBoxSize(box.id, { unit })}
+                        >
                           <SelectTrigger className="bg-black/40 border-white/20 text-white text-sm h-10">
                             <SelectValue />
                           </SelectTrigger>
@@ -985,7 +1083,6 @@ export function CampaignManagement() {
                       </div>
                     </div>
 
-                    {/* Computed Volume Display */}
                     <div className="flex items-center gap-2 p-2 bg-black/30 rounded border border-white/5">
                       <span className="text-gray-400 text-sm">Computed Volume:</span>
                       <span className="text-[#FFC700] font-mono font-semibold">
@@ -996,7 +1093,6 @@ export function CampaignManagement() {
                       )}
                     </div>
 
-                    {/* Notes */}
                     <div className="space-y-2">
                       <Label className="text-gray-400 text-xs">Notes (optional)</Label>
                       <Input
@@ -1007,7 +1103,6 @@ export function CampaignManagement() {
                       />
                     </div>
 
-                    {/* Validation Warning */}
                     {(box.name === "" || box.length <= 0 || box.width <= 0 || box.height <= 0) && (
                       <div className="flex items-center gap-2 text-yellow-500 text-xs">
                         <AlertTriangle className="w-4 h-4" />
@@ -1017,7 +1112,6 @@ export function CampaignManagement() {
                   </div>
                 ))}
 
-                {/* No boxes message */}
                 {safeBoxSizes.length === 0 && (
                   <div className="text-center py-8 text-gray-500">
                     <p>No box sizes defined yet.</p>
@@ -1046,7 +1140,6 @@ export function CampaignManagement() {
                   Set post-campaign fees and provide payment info for final settlement.
                 </p>
 
-                {/* Admin Fee and Shipping Fee */}
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-white font-medium">Admin Fee (USD)</Label>
@@ -1055,7 +1148,7 @@ export function CampaignManagement() {
                       <Input
                         type="number"
                         value={selectedCampaign.adminFee}
-                        onChange={(e) => updateCampaign({ adminFee: Number.parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => updateLocal({ adminFee: Number.parseFloat(e.target.value) || 0 })}
                         className="bg-black/40 border-white/20 text-white pl-7"
                         min="0"
                         step="0.01"
@@ -1069,7 +1162,7 @@ export function CampaignManagement() {
                       <Input
                         type="number"
                         value={selectedCampaign.shippingFee}
-                        onChange={(e) => updateCampaign({ shippingFee: Number.parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => updateLocal({ shippingFee: Number.parseFloat(e.target.value) || 0 })}
                         className="bg-black/40 border-white/20 text-white pl-7"
                         min="0"
                         step="0.01"
@@ -1078,42 +1171,29 @@ export function CampaignManagement() {
                   </div>
                 </div>
 
-                {/* Final Payment Info */}
                 <div className="space-y-4">
                   <Label className="text-white font-medium">Final Payment Info</Label>
-                  <Input
-                    value={safeFinalPaymentInfo.paypal || ""}
-                    onChange={(e) =>
-                      updateCampaign({
-                        finalPaymentInfo: { ...safeFinalPaymentInfo, paypal: e.target.value },
-                      })
-                    }
-                    className="bg-black/40 border-white/20 text-white placeholder:text-gray-500"
-                    placeholder="PayPal (username, email, or link)"
-                  />
-                  <Input
-                    value={safeFinalPaymentInfo.venmo || ""}
-                    onChange={(e) =>
-                      updateCampaign({
-                        finalPaymentInfo: { ...safeFinalPaymentInfo, venmo: e.target.value },
-                      })
-                    }
-                    className="bg-black/40 border-white/20 text-white placeholder:text-gray-500"
-                    placeholder="Venmo (username or link)"
-                  />
-                  <Input
-                    value={safeFinalPaymentInfo.zelle || ""}
-                    onChange={(e) =>
-                      updateCampaign({
-                        finalPaymentInfo: { ...safeFinalPaymentInfo, zelle: e.target.value },
-                      })
-                    }
-                    className="bg-black/40 border-white/20 text-white placeholder:text-gray-500"
-                    placeholder="Zelle (email or phone number)"
-                  />
+                  {(["paypal", "venmo", "zelle"] as const).map((method) => (
+                    <Input
+                      key={method}
+                      value={safeFinalPaymentInfo[method] || ""}
+                      onChange={(e) =>
+                        updateLocal({
+                          finalPaymentInfo: { ...safeFinalPaymentInfo, [method]: e.target.value },
+                        })
+                      }
+                      className="bg-black/40 border-white/20 text-white placeholder:text-gray-500"
+                      placeholder={
+                        method === "paypal"
+                          ? "PayPal (username, email, or link)"
+                          : method === "venmo"
+                            ? "Venmo (username or link)"
+                            : "Zelle (email or phone number)"
+                      }
+                    />
+                  ))}
                 </div>
 
-                {/* Fee Payment Crypto Options */}
                 <div className="space-y-4">
                   <Label className="text-white font-medium">Fee Payment Crypto Options</Label>
                   {safeCryptoFeeOptions.map((option) => (
@@ -1167,7 +1247,20 @@ export function CampaignManagement() {
 
           {/* Save Button */}
           <div className="flex justify-end">
-            <Button className="bg-[#FFC700] hover:bg-[#E6B300] text-black px-8 font-semibold">Save Campaign</Button>
+            <Button
+              onClick={saveCampaign}
+              disabled={saving}
+              className="bg-[#FFC700] hover:bg-[#E6B300] text-black px-8 font-semibold"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Campaign"
+              )}
+            </Button>
           </div>
         </>
       )}

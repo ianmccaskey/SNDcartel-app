@@ -4,26 +4,28 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import type { AccountDetails } from "@/lib/types"
 import { useState } from "react"
 
 interface AccountDetailsCardProps {
-  account: AccountDetails | null
-  onSave: (account: AccountDetails) => void
+  fullName: string
+  discordName: string
+  onSave: (data: { fullName: string; discordName: string }) => Promise<void>
 }
 
-export function AccountDetailsCard({ account, onSave }: AccountDetailsCardProps) {
+export function AccountDetailsCard({ fullName: initialFullName, discordName: initialDiscordName, onSave }: AccountDetailsCardProps) {
   const [isEditing, setIsEditing] = useState(false)
-  const [fullName, setFullName] = useState(account?.fullName || "")
-  const [discordName, setDiscordName] = useState(account?.discordName || "")
+  const [saving, setSaving] = useState(false)
+  const [fullName, setFullName] = useState(initialFullName)
+  const [discordName, setDiscordName] = useState(initialDiscordName)
 
-  const handleSave = () => {
-    onSave({
-      fullName,
-      discordName,
-      shippingAddress: account?.shippingAddress || { line1: "", city: "", state: "", zip: "" },
-    })
-    setIsEditing(false)
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await onSave({ fullName, discordName })
+      setIsEditing(false)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -35,8 +37,8 @@ export function AccountDetailsCard({ account, onSave }: AccountDetailsCardProps)
             Edit
           </Button>
         ) : (
-          <Button size="sm" onClick={handleSave}>
-            Save
+          <Button size="sm" onClick={handleSave} disabled={saving}>
+            {saving ? "Saving..." : "Save"}
           </Button>
         )}
       </CardHeader>

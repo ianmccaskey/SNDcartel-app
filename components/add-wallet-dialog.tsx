@@ -47,12 +47,12 @@ export function AddWalletDialog({ onAdd }: AddWalletDialogProps) {
               <SelectTrigger id="chain" className="text-white blockchain-select">
                 <SelectValue placeholder="Select blockchain" />
               </SelectTrigger>
-              <SelectContent className="bg-background/80 backdrop-blur-xl border-white/20 blockchain-select-content">
-                <SelectItem value="Ethereum">Ethereum</SelectItem>
-                <SelectItem value="Solana">Solana</SelectItem>
-                <SelectItem value="Bitcoin">Bitcoin</SelectItem>
-                <SelectItem value="Polygon">Polygon</SelectItem>
-                <SelectItem value="Other">Other</SelectItem>
+              <SelectContent className="bg-background/80 backdrop-blur-xl border-white/20 blockchain-select-content text-white">
+                <SelectItem value="Ethereum" className="text-white hover:bg-white/10 focus:bg-white/10 focus:text-white">Ethereum</SelectItem>
+                <SelectItem value="Solana" className="text-white hover:bg-white/10 focus:bg-white/10 focus:text-white">Solana</SelectItem>
+                <SelectItem value="Bitcoin" className="text-white hover:bg-white/10 focus:bg-white/10 focus:text-white">Bitcoin</SelectItem>
+                <SelectItem value="Polygon" className="text-white hover:bg-white/10 focus:bg-white/10 focus:text-white">Polygon</SelectItem>
+                <SelectItem value="Other" className="text-white hover:bg-white/10 focus:bg-white/10 focus:text-white">Other</SelectItem>
               </SelectContent>
             </Select>
           </div>

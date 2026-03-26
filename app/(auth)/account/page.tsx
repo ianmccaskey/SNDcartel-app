@@ -1,136 +1,135 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { AccountDetailsCard } from "@/components/account-details-card"
-import { ShippingAddressCard } from "@/components/shipping-address-card"
-import { WalletsCard } from "@/components/wallets-card"
-import { OrdersCard } from "@/components/orders-card"
-import type { Wallet, Order, OrderItem } from "@/lib/types"
-import { loadFromStorage, saveToStorage } from "@/lib/storage"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
-function aggregateOrdersByGroupBuy(orders: Order[]): Order[] {
-  const orderMap = new Map<string, Order>()
+interface UserProfile {
+  id: string
+  email: string
+  role: string
+  fullName: string | null
+  discordName: string | null
+  shippingLine1: string | null
+  shippingLine2: string | null
+  shippingCity: string | null
+  shippingState: string | null
+  shippingZip: string | null
+  profileComplete: boolean
+}
 
-  for (const order of orders) {
-    const key = order.groupBuyTitle || order.groupBuyId || order.id
-
-    if (orderMap.has(key)) {
-      const existingOrder = orderMap.get(key)!
-
-      // Merge items - aggregate quantities for same products
-      const itemsMap = new Map<string, OrderItem>()
-
-      for (const item of existingOrder.items) {
-        const itemObj = typeof item === "string" ? { productId: item, name: item, quantity: 1, price: 0 } : item
-        itemsMap.set(itemObj.productId || itemObj.name, { ...itemObj })
-      }
-
-      for (const item of order.items) {
-        const itemObj = typeof item === "string" ? { productId: item, name: item, quantity: 1, price: 0 } : item
-        const itemKey = itemObj.productId || itemObj.name
-        if (itemsMap.has(itemKey)) {
-          const existing = itemsMap.get(itemKey)!
-          existing.quantity += itemObj.quantity
-        } else {
-          itemsMap.set(itemKey, { ...itemObj })
-        }
-      }
-
-      // Update the existing order with merged data
-      existingOrder.items = Array.from(itemsMap.values())
-      existingOrder.totalCost = (existingOrder.totalCost || 0) + (order.totalCost || order.total || 0)
-
-      // Collect all transaction URLs
-      existingOrder.allTxUrls = existingOrder.allTxUrls || []
-      if (existingOrder.txUrl && !existingOrder.allTxUrls.includes(existingOrder.txUrl)) {
-        existingOrder.allTxUrls.push(existingOrder.txUrl)
-      }
-      if (order.txUrl && !existingOrder.allTxUrls.includes(order.txUrl)) {
-        existingOrder.allTxUrls.push(order.txUrl)
-      }
-
-      // Keep the most recent submission date
-      if (order.submittedAt && (!existingOrder.submittedAt || order.submittedAt > existingOrder.submittedAt)) {
-        existingOrder.submittedAt = order.submittedAt
-      }
-
-      // Keep Delivered status if any order has it
-      if (order.status === "Delivered") {
-        existingOrder.status = "Delivered"
-      }
-    } else {
-      // Clone the order to avoid mutations
-      const txUrls: string[] = []
-      if (order.txUrl) txUrls.push(order.txUrl)
-
-      orderMap.set(key, {
-        ...order,
-        items: order.items.map((item) =>
-          typeof item === "string" ? { productId: item, name: item, quantity: 1, price: 0 } : { ...item },
-        ),
-        totalCost: order.totalCost || order.total || 0,
-        allTxUrls: txUrls,
-      })
-    }
-  }
-
-  return Array.from(orderMap.values())
+interface Wallet {
+  id: string
+  chain: string
+  address: string
 }
 
 export default function AccountPage() {
+  const [profile, setProfile] = useState<UserProfile | null>(null)
   const [wallets, setWallets] = useState<Wallet[]>([])
-  const [orders, setOrders] = useState<Order[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Form states
+  const [fullName, setFullName] = useState("")
+  const [discordName, setDiscordName] = useState("")
+  const [shippingLine1, setShippingLine1] = useState("")
+  const [shippingLine2, setShippingLine2] = useState("")
+  const [shippingCity, setShippingCity] = useState("")
+  const [shippingState, setShippingState] = useState("")
+  const [shippingZip, setShippingZip] = useState("")
+
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    const savedWallets = loadFromStorage<Wallet[]>("wallets") || []
-    setWallets(savedWallets)
-    const savedOrders = loadFromStorage<Order[]>("orders") || []
+    async function loadData() {
+      try {
+        // Load profile
+        const profileRes = await fetch("/api/users/me")
+        if (profileRes.ok) {
+          const profileData = await profileRes.json()
+          setProfile(profileData)
+          setFullName(profileData.fullName || "")
+          setDiscordName(profileData.discordName || "")
+          setShippingLine1(profileData.shippingLine1 || "")
+          setShippingLine2(profileData.shippingLine2 || "")
+          setShippingCity(profileData.shippingCity || "")
+          setShippingState(profileData.shippingState || "")
+          setShippingZip(profileData.shippingZip || "")
+        }
 
-    const hasRatCartelOrder = savedOrders.some(
-      (o) => o.groupBuyId === "rat-cartel" || o.groupBuyTitle === "SND x Rat Cartel Group Buy",
-    )
-    if (!hasRatCartelOrder) {
-      const defaultOrder: Order = {
-        id: "rat-cartel-001",
-        groupBuyId: "rat-cartel",
-        groupBuyTitle: "SND x Rat Cartel Group Buy",
-        items: [
-          { productId: "tirz-30", name: "Tirzepatide 30mg", quantity: 2, price: 45 },
-          { productId: "reta-20", name: "Retatrutide 20mg", quantity: 1, price: 55 },
-        ],
-        totalCost: 145,
-        status: "Delivered",
-        txUrl: "https://etherscan.io/tx/0x7a3b9f2c",
-        chain: "Ethereum",
-        submittedAt: new Date("2024-12-15").toISOString(),
+        // Load wallets
+        const walletsRes = await fetch("/api/users/me/wallets")
+        if (walletsRes.ok) {
+          const walletsData = await walletsRes.json()
+          setWallets(walletsData)
+        }
+
+      } catch (err) {
+        setError(`Error loading data: ${err}`)
+      } finally {
+        setLoading(false)
       }
-      savedOrders.unshift(defaultOrder)
     }
 
-    const aggregatedOrders = aggregateOrdersByGroupBuy(savedOrders)
-    saveToStorage("orders", aggregatedOrders)
-    setOrders(aggregatedOrders)
+    loadData()
   }, [])
 
-  const handleAddWallet = (wallet: Omit<Wallet, "id">) => {
-    const newWallet = { ...wallet, id: Date.now().toString() }
-    const updatedWallets = [...wallets, newWallet]
-    setWallets(updatedWallets)
-    saveToStorage("wallets", updatedWallets)
+  const handleSaveProfile = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch("/api/users/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName,
+          discordName,
+          shippingLine1,
+          shippingLine2,
+          shippingCity,
+          shippingState,
+          shippingZip,
+        }),
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setProfile(updated)
+        setError(null)
+      } else {
+        setError(`Failed to save: ${res.status}`)
+      }
+    } catch (err) {
+      setError(`Error saving: ${err}`)
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const handleRemoveWallet = (id: string) => {
-    const updatedWallets = wallets.filter((w) => w.id !== id)
-    setWallets(updatedWallets)
-    saveToStorage("wallets", updatedWallets)
+  if (loading) {
+    return (
+      <div className="relative min-h-screen bg-black text-white">
+        <div 
+          className="relative z-10 container mx-auto px-4"
+          style={{
+            WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, black 120px, black 100%)",
+          }}
+        >
+          <div className="mb-8 pt-32 md:pt-40">
+            <h1 className="text-4xl font-bold mb-2">Account Settings</h1>
+            <p className="text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-transparent relative">
-      <div
-        className="container mx-auto px-4 py-8 max-w-6xl relative z-10"
+    <div className="relative min-h-screen bg-black text-white">
+      <div 
+        className="relative z-10 container mx-auto px-4"
         style={{
-          maskImage: "linear-gradient(to bottom, transparent 0%, black 120px, black 100%)",
           WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, black 120px, black 100%)",
         }}
       >
@@ -139,11 +138,141 @@ export default function AccountPage() {
           <p className="text-muted-foreground">Manage your account details and preferences</p>
         </div>
 
+        {error && (
+          <div className="mb-6 p-4 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200">
+            {error}
+          </div>
+        )}
+
         <div className="grid gap-6 md:grid-cols-2">
-          <AccountDetailsCard />
-          <ShippingAddressCard />
-          <WalletsCard wallets={wallets} onAdd={handleAddWallet} onRemove={handleRemoveWallet} />
-          <OrdersCard orders={orders} />
+          {/* Profile Details */}
+          <Card className="bg-background/80 backdrop-blur-md border-white/10">
+            <CardHeader>
+              <CardTitle>Profile Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  value={profile?.email || ""}
+                  disabled
+                  className="bg-white/5 border-white/10"
+                />
+              </div>
+              <div>
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input
+                  id="fullName"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="bg-white/5 border-white/10"
+                />
+              </div>
+              <div>
+                <Label htmlFor="discordName">Discord Name</Label>
+                <Input
+                  id="discordName"
+                  value={discordName}
+                  onChange={(e) => setDiscordName(e.target.value)}
+                  className="bg-white/5 border-white/10"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Shipping Address */}
+          <Card className="bg-background/80 backdrop-blur-md border-white/10">
+            <CardHeader>
+              <CardTitle>Shipping Address</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="shippingLine1">Address Line 1</Label>
+                <Input
+                  id="shippingLine1"
+                  value={shippingLine1}
+                  onChange={(e) => setShippingLine1(e.target.value)}
+                  className="bg-white/5 border-white/10"
+                />
+              </div>
+              <div>
+                <Label htmlFor="shippingLine2">Address Line 2</Label>
+                <Input
+                  id="shippingLine2"
+                  value={shippingLine2}
+                  onChange={(e) => setShippingLine2(e.target.value)}
+                  className="bg-white/5 border-white/10"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label htmlFor="shippingCity">City</Label>
+                  <Input
+                    id="shippingCity"
+                    value={shippingCity}
+                    onChange={(e) => setShippingCity(e.target.value)}
+                    className="bg-white/5 border-white/10"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="shippingState">State</Label>
+                  <Input
+                    id="shippingState"
+                    value={shippingState}
+                    onChange={(e) => setShippingState(e.target.value)}
+                    className="bg-white/5 border-white/10"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="shippingZip">ZIP Code</Label>
+                <Input
+                  id="shippingZip"
+                  value={shippingZip}
+                  onChange={(e) => setShippingZip(e.target.value)}
+                  className="bg-white/5 border-white/10"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Crypto Wallets */}
+          <Card className="bg-background/80 backdrop-blur-md border-white/10">
+            <CardHeader>
+              <CardTitle>Crypto Wallets</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {wallets.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No wallets added yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {wallets.map((wallet) => (
+                    <div key={wallet.id} className="flex items-center justify-between p-3 border rounded-lg border-white/10">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium">{wallet.chain}</div>
+                        <div className="text-xs text-muted-foreground truncate">{wallet.address}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Save Button */}
+          <div className="md:col-span-2">
+            <Button 
+              onClick={handleSaveProfile}
+              disabled={saving}
+              className="w-full md:w-auto"
+            >
+              {saving ? "Saving..." : "[Save Changes]"}
+            </Button>
+            {profile?.profileComplete && (
+              <p className="text-sm text-green-400 mt-2">✓ Profile is complete</p>
+            )}
+          </div>
         </div>
       </div>
     </div>

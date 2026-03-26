@@ -5,12 +5,16 @@ import { Logo } from "./logo"
 import { motion, LayoutGroup, AnimatePresence } from "framer-motion"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
-import { Menu, X } from "lucide-react"
+import { Menu, X, LogOut } from "lucide-react"
+import { useSession, signOut } from "next-auth/react"
 
 export const AuthHeader = () => {
   const pathname = usePathname()
+  const { data: session } = useSession()
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+  const isAdmin = session?.user?.role === "admin"
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)")
@@ -39,12 +43,15 @@ export const AuthHeader = () => {
   const showNav = pathname === "/home" || pathname === "/account" || pathname === "/store" || pathname === "/admin"
   const shouldAnimate = !prefersReducedMotion
 
-  const navItems = [
+  const baseNavItems = [
     { href: "/home", label: "Home" },
     { href: "/account", label: "Account" },
     { href: "/store", label: "Store" },
-    { href: "/admin", label: "Admin" },
   ]
+
+  const navItems = isAdmin
+    ? [...baseNavItems, { href: "/admin", label: "Admin" }]
+    : baseNavItems
 
   const getLinkClassName = (itemHref: string) => {
     const isActive = pathname === itemHref
@@ -104,7 +111,8 @@ export const AuthHeader = () => {
     },
   }
 
-  const backdropVariants = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const backdropVariants: any = {
     hidden: {
       opacity: 0,
       backdropFilter: "blur(0px)",
@@ -169,7 +177,6 @@ export const AuthHeader = () => {
               onClick={() => setIsMobileMenuOpen(false)}
             />
 
-            {/* Menu content */}
             <div className="relative z-10 flex flex-col items-center justify-center h-full">
               <motion.button
                 variants={closeButtonVariants}
@@ -204,6 +211,15 @@ export const AuthHeader = () => {
                     </Link>
                   </motion.div>
                 ))}
+
+                <motion.div variants={menuItemVariants}>
+                  <button
+                    onClick={() => signOut({ callbackUrl: "/login" })}
+                    className="block text-2xl font-medium transition-colors py-4 text-white hover:text-yellow-500"
+                  >
+                    Log Out
+                  </button>
+                </motion.div>
               </motion.nav>
             </div>
           </motion.div>
@@ -241,7 +257,7 @@ export const AuthHeader = () => {
               {showNav && (
                 <>
                   <motion.nav
-                    className="hidden md:flex gap-6 text-white ml-auto text-lg font-medium z-50"
+                    className="hidden md:flex gap-6 text-white ml-auto text-lg font-medium z-50 items-center"
                     animate={{ opacity: 1 }}
                     transition={{
                       duration: shouldAnimate ? 1.0 : 0,
@@ -258,6 +274,13 @@ export const AuthHeader = () => {
                         {item.label}
                       </Link>
                     ))}
+                    <button
+                      onClick={() => signOut({ callbackUrl: "/login" })}
+                      className="hover:text-white/80 transition-colors flex items-center gap-1"
+                      title="Log out"
+                    >
+                      <LogOut size={16} />
+                    </button>
                   </motion.nav>
 
                   <button

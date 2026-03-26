@@ -4,29 +4,55 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import type { AccountDetails } from "@/lib/types"
 import { useState } from "react"
 
-interface ShippingAddressCardProps {
-  account: AccountDetails | null
-  onSave: (account: AccountDetails) => void
+interface ShippingData {
+  shippingLine1: string
+  shippingLine2: string
+  shippingCity: string
+  shippingState: string
+  shippingZip: string
 }
 
-export function ShippingAddressCard({ account, onSave }: ShippingAddressCardProps) {
-  const [isEditing, setIsEditing] = useState(false)
-  const [line1, setLine1] = useState(account?.shippingAddress.line1 || "")
-  const [line2, setLine2] = useState(account?.shippingAddress.line2 || "")
-  const [city, setCity] = useState(account?.shippingAddress.city || "")
-  const [state, setState] = useState(account?.shippingAddress.state || "")
-  const [zip, setZip] = useState(account?.shippingAddress.zip || "")
+interface ShippingAddressCardProps {
+  shippingLine1: string
+  shippingLine2: string
+  shippingCity: string
+  shippingState: string
+  shippingZip: string
+  onSave: (data: ShippingData) => Promise<void>
+}
 
-  const handleSave = () => {
-    onSave({
-      fullName: account?.fullName || "",
-      discordName: account?.discordName || "",
-      shippingAddress: { line1, line2, city, state, zip },
-    })
-    setIsEditing(false)
+export function ShippingAddressCard({
+  shippingLine1: initialLine1,
+  shippingLine2: initialLine2,
+  shippingCity: initialCity,
+  shippingState: initialState,
+  shippingZip: initialZip,
+  onSave,
+}: ShippingAddressCardProps) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [line1, setLine1] = useState(initialLine1)
+  const [line2, setLine2] = useState(initialLine2)
+  const [city, setCity] = useState(initialCity)
+  const [state, setState] = useState(initialState)
+  const [zip, setZip] = useState(initialZip)
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await onSave({
+        shippingLine1: line1,
+        shippingLine2: line2,
+        shippingCity: city,
+        shippingState: state,
+        shippingZip: zip,
+      })
+      setIsEditing(false)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -38,8 +64,8 @@ export function ShippingAddressCard({ account, onSave }: ShippingAddressCardProp
             Edit
           </Button>
         ) : (
-          <Button size="sm" onClick={handleSave}>
-            Save
+          <Button size="sm" onClick={handleSave} disabled={saving}>
+            {saving ? "Saving..." : "Save"}
           </Button>
         )}
       </CardHeader>

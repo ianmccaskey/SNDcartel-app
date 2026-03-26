@@ -1,20 +1,25 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { X, Copy, Check, Loader2, AlertCircle, CheckCircle2 } from "lucide-react"
-import { mergeOrCreateOrder } from "@/lib/storage"
-import type { Order, OrderItem } from "@/lib/types"
+import { X, Copy, Check, Loader2, AlertCircle, CheckCircle2, Clock } from "lucide-react"
 
 interface CartItem {
   productId: string
   name: string
   price: number
   quantity: number
+}
+
+interface AcceptedPayment {
+  id: string
+  token: string
+  network: string
+  walletAddress: string
 }
 
 interface CheckoutOverlayProps {
@@ -24,82 +29,119 @@ interface CheckoutOverlayProps {
   total: number
   groupBuyTitle: string
   groupBuyId: string
+  acceptedPayments: AcceptedPayment[]
 }
 
-const paymentOptions = [
-  { id: "usdc-eth", label: "USDC (Ethereum)", address: "0x037f355dcF452a88bA72Ffe4B72B33", chain: "Ethereum" },
-  { id: "usdc-arb", label: "USDC (Arbitrum)", address: "0x037f355dcF452a88bA72Ffe4B72B33", chain: "Arbitrum" },
-  { id: "usdt-eth", label: "USDT (Ethereum)", address: "0x037f355dcF452a88bA72Ffe4B72B33", chain: "Ethereum" },
-  { id: "btc", label: "Bitcoin (BTC)", address: "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh", chain: "Bitcoin" },
-  { id: "eth", label: "Ethereum (ETH)", address: "0x037f355dcF452a88bA72Ffe4B72B33", chain: "Ethereum" },
-]
-
-export function CheckoutOverlay({ isOpen, onClose, cart, total, groupBuyTitle, groupBuyId }: CheckoutOverlayProps) {
+export function CheckoutOverlay({
+  isOpen,
+  onClose,
+  cart,
+  total,
+  groupBuyTitle,
+  groupBuyId,
+  acceptedPayments,
+}: CheckoutOverlayProps) {
   const router = useRouter()
-  const [selectedPayment, setSelectedPayment] = useState("")
-  const [transactionId, setTransactionId] = useState("")
+  const [selectedPaymentId, setSelectedPaymentId] = useState("")
+  const [customerWallet, setCustomerWallet] = useState("")
   const [copied, setCopied] = useState(false)
-  const [verifying, setVerifying] = useState(false)
-  const [verificationStatus, setVerificationStatus] = useState<"idle" | "success" | "error">("idle")
+  const [submitting, setSubmitting] = useState(false)
+  const [orderId, setOrderId] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [pollStatus, setPollStatus] = useState<"idle" | "polling" | "verified" | "error">("idle")
 
-  const selectedPaymentOption = paymentOptions.find((p) => p.id === selectedPayment)
+  const selectedPayment = acceptedPayments.find((p) => p.id === selectedPaymentId)
 
   const copyAddress = async () => {
-    if (selectedPaymentOption) {
-      await navigator.clipboard.writeText(selectedPaymentOption.address)
+    if (selectedPayment) {
+      await navigator.clipboard.writeText(selectedPayment.walletAddress)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     }
   }
 
-  const handleVerify = async () => {
-    if (!transactionId.trim() || !selectedPaymentOption) return
+  // Poll payment status after order is created
+  const pollPaymentStatus = useCallback(async (id: string) => {
+    setPollStatus("polling")
+    let attempts = 0
+    const maxAttempts = 60 // 5 minutes at 5s intervals
 
-    setVerifying(true)
-    setVerificationStatus("idle")
+    const poll = async () => {
+      if (attempts >= maxAttempts) {
+        setPollStatus("idle")
+        return
+      }
+      attempts++
 
-    // Simulate verification process
-    await new Promise((resolve) => setTimeout(resolve, 2000))
+      try {
+        const res = await fetch(`/api/orders/${id}/payment-status`)
+        if (!res.ok) return
+        const data = await res.json()
 
-    // Mock result - in production this would check the blockchain
-    const success = Math.random() > 0.2
-    setVerificationStatus(success ? "success" : "error")
-    setVerifying(false)
+        if (data.paymentStatus === "verified" || data.orderStatus === "payment_verified") {
+          setPollStatus("verified")
+          setTimeout(() => {
+            onClose()
+            router.push("/account")
+          }, 2000)
+          return
+        }
 
-    if (success) {
-      const orderItems: OrderItem[] = cart.map((item) => ({
-        productId: item.productId,
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-      }))
+        // Keep polling
+        setTimeout(poll, 5000)
+      } catch {
+        setTimeout(poll, 5000)
+      }
+    }
 
-      const newOrder: Order = {
-        id: `order-${Date.now()}`,
-        groupBuyId, // Added groupBuyId for tracking
-        groupBuyTitle,
-        totalCost: total,
-        txUrl: `https://etherscan.io/tx/${transactionId}`,
-        chain: selectedPaymentOption.chain,
-        items: orderItems, // Using structured items
-        status: "Submitted",
-        submittedAt: new Date().toISOString(),
+    poll()
+  }, [onClose, router])
+
+  const handleSubmit = async () => {
+    if (!selectedPayment || !customerWallet.trim()) return
+
+    setSubmitting(true)
+    setSubmitError(null)
+
+    try {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          groupBuyId,
+          storeOrder: false,
+          customerWalletAddress: customerWallet.trim(),
+          items: cart.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            unitPriceUsd: item.price,
+            productNameSnapshot: item.name,
+          })),
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        setSubmitError(data.error ?? "Failed to place order.")
+        return
       }
 
-      await mergeOrCreateOrder(newOrder)
-
-      // Redirect to account page after short delay
-      setTimeout(() => {
-        onClose()
-        router.push("/account")
-      }, 1500)
+      setOrderId(data.id)
+      pollPaymentStatus(data.id)
+    } catch {
+      setSubmitError("Network error. Please try again.")
+    } finally {
+      setSubmitting(false)
     }
   }
 
   const handleClose = () => {
-    setSelectedPayment("")
-    setTransactionId("")
-    setVerificationStatus("idle")
+    setSelectedPaymentId("")
+    setCustomerWallet("")
+    setSubmitError(null)
+    setPollStatus("idle")
+    setOrderId(null)
     onClose()
   }
 
@@ -145,142 +187,196 @@ export function CheckoutOverlay({ isOpen, onClose, cart, total, groupBuyTitle, g
 
               {/* Content */}
               <div className="p-6 space-y-6">
-                <p className="text-white/70">To complete your pledge, please follow these steps:</p>
-
-                {/* Step 1: Select Payment */}
-                <div className="checkout-payment-step space-y-3 text-white">
-                  <h3 className="font-semibold text-white">1. Select Payment Option</h3>
-                  <style jsx>{`
-                    .checkout-payment-step {
-                      color: white;
-                    }
-                    .checkout-payment-step h3 {
-                      color: white !important;
-                    }
-                    .checkout-payment-select-content [data-radix-select-item] {
-                      color: #ffffff !important;
-                      background-color: transparent !important;
-                    }
-                    .checkout-payment-select-content [data-radix-select-item]:hover,
-                    .checkout-payment-select-content [data-radix-select-item][data-highlighted] {
-                      background-color: rgba(255, 255, 255, 0.1) !important;
-                      color: #ffffff !important;
-                    }
-                  `}</style>
-                  <Select value={selectedPayment} onValueChange={setSelectedPayment}>
-                    <SelectTrigger className="w-full bg-black/40 border-white/20 h-12 text-white">
-                      <SelectValue placeholder="Select payment method" />
-                    </SelectTrigger>
-                    <SelectContent className="checkout-payment-select-content bg-black/90 backdrop-blur-xl border-white/20">
-                      {paymentOptions.map((option) => (
-                        <SelectItem
-                          key={option.id}
-                          value={option.id}
-                          className="text-white hover:bg-white/10 focus:bg-white/10"
-                        >
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Step 2: Send Payment */}
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-white">2. Send Payment</h3>
-                  <p className="text-sm text-white/60">
-                    Send approx. <span className="text-white font-semibold">${total.toFixed(2)}</span> worth of{" "}
-                    <span className="text-white font-semibold">
-                      {selectedPaymentOption?.label.split(" ")[0] || "crypto"}
-                    </span>{" "}
-                    to the address below.
-                  </p>
-                  <div className="flex items-center gap-2 p-4 bg-black/40 border border-white/20 rounded-lg">
-                    <code className="flex-1 text-sm font-mono text-white/90 break-all">
-                      {selectedPaymentOption?.address || "Select a payment option first"}
-                    </code>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="flex-shrink-0 text-white/60 hover:text-white hover:bg-white/10"
-                      onClick={copyAddress}
-                      disabled={!selectedPaymentOption}
-                    >
-                      {copied ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Step 3: Verify Payment */}
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-white">3. Verify Payment</h3>
-                  <p className="text-sm text-white/60">
-                    After sending, paste the transaction hash (receipt) from your wallet here.
-                  </p>
-                  <Textarea
-                    placeholder="0x..."
-                    value={transactionId}
-                    onChange={(e) => setTransactionId(e.target.value)}
-                    className="w-full bg-black/40 border-white/20 resize-none h-24 font-mono text-sm text-white"
-                  />
-                </div>
-
-                {/* Verification Status */}
-                <AnimatePresence>
-                  {verificationStatus !== "idle" && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      className={`flex items-center gap-3 p-4 rounded-lg ${
-                        verificationStatus === "success"
-                          ? "bg-green-500/20 border border-green-500/50"
-                          : "bg-red-500/20 border border-red-500/50"
-                      }`}
-                    >
-                      {verificationStatus === "success" ? (
-                        <>
-                          <CheckCircle2 className="h-5 w-5 text-green-400" />
+                {orderId ? (
+                  /* Post-order: payment instructions + polling */
+                  <div className="space-y-6">
+                    {pollStatus === "verified" ? (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex items-center gap-3 p-4 rounded-lg bg-green-500/20 border border-green-500/50"
+                      >
+                        <CheckCircle2 className="h-5 w-5 text-green-400" />
+                        <div>
+                          <p className="font-semibold text-green-400">Payment Verified!</p>
+                          <p className="text-sm text-green-300/70">Redirecting to your account...</p>
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-3 p-4 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
+                          <Clock className="h-5 w-5 text-cyan-400 flex-shrink-0" />
                           <div>
-                            <p className="font-semibold text-green-400">Payment Verified!</p>
-                            <p className="text-sm text-green-300/70">Redirecting to your account...</p>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <AlertCircle className="h-5 w-5 text-red-400" />
-                          <div>
-                            <p className="font-semibold text-red-400">Verification Failed</p>
-                            <p className="text-sm text-red-300/70">
-                              Transaction not found. Please check and try again.
+                            <p className="font-semibold text-cyan-400">Order Placed!</p>
+                            <p className="text-sm text-white/60">
+                              Send your payment and we&apos;ll automatically detect it.
                             </p>
                           </div>
-                        </>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                        </div>
 
-                {/* Verify Button */}
-                <Button
-                  className="w-full h-12 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold"
-                  onClick={handleVerify}
-                  disabled={!selectedPayment || !transactionId.trim() || verifying || verificationStatus === "success"}
-                >
-                  {verifying ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Verifying...
-                    </>
-                  ) : verificationStatus === "success" ? (
-                    <>
-                      <CheckCircle2 className="mr-2 h-4 w-4" />
-                      Redirecting...
-                    </>
-                  ) : (
-                    "Verify My Payment"
-                  )}
-                </Button>
+                        <div className="space-y-2">
+                          <h3 className="font-semibold text-white">Send Payment To:</h3>
+                          <div className="flex items-center gap-2 p-4 bg-black/40 border border-white/20 rounded-lg">
+                            <code className="flex-1 text-sm font-mono text-white/90 break-all">
+                              {selectedPayment?.walletAddress}
+                            </code>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="flex-shrink-0 text-white/60 hover:text-white hover:bg-white/10"
+                              onClick={copyAddress}
+                            >
+                              {copied ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                          <p className="text-sm text-white/60">
+                            Send exactly <span className="text-white font-semibold">${total.toFixed(2)}</span> in{" "}
+                            <span className="text-white font-semibold">{selectedPayment?.token}</span>
+                          </p>
+                        </div>
+
+                        {pollStatus === "polling" && (
+                          <div className="flex items-center gap-2 text-sm text-white/50">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Waiting for payment detection...
+                          </div>
+                        )}
+
+                        <Button
+                          variant="ghost"
+                          className="w-full text-white/60 hover:text-white"
+                          onClick={() => {
+                            onClose()
+                            router.push("/account")
+                          }}
+                        >
+                          I&apos;ll pay later — go to my account
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  /* Pre-order form */
+                  <>
+                    <p className="text-white/70">To complete your pledge, please follow these steps:</p>
+
+                    {/* Step 1: Select Payment */}
+                    <div className="checkout-payment-step space-y-3 text-white">
+                      <h3 className="font-semibold text-white">1. Select Payment Option</h3>
+                      <style jsx>{`
+                        .checkout-payment-step {
+                          color: white;
+                        }
+                        .checkout-payment-step h3 {
+                          color: white !important;
+                        }
+                        .checkout-payment-select-content [data-radix-select-item] {
+                          color: #ffffff !important;
+                          background-color: transparent !important;
+                        }
+                        .checkout-payment-select-content [data-radix-select-item]:hover,
+                        .checkout-payment-select-content [data-radix-select-item][data-highlighted] {
+                          background-color: rgba(255, 255, 255, 0.1) !important;
+                          color: #ffffff !important;
+                        }
+                      `}</style>
+                      {acceptedPayments.length === 0 ? (
+                        <p className="text-sm text-white/50">No payment options configured for this group buy.</p>
+                      ) : (
+                        <Select value={selectedPaymentId} onValueChange={setSelectedPaymentId}>
+                          <SelectTrigger className="w-full bg-black/40 border-white/20 h-12 text-white">
+                            <SelectValue placeholder="Select payment method" />
+                          </SelectTrigger>
+                          <SelectContent className="checkout-payment-select-content bg-black/90 backdrop-blur-xl border-white/20">
+                            {acceptedPayments.map((option) => (
+                              <SelectItem
+                                key={option.id}
+                                value={option.id}
+                                className="text-white hover:bg-white/10 focus:bg-white/10"
+                              >
+                                {option.token} ({option.network})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+
+                    {/* Step 2: Enter Your Wallet */}
+                    <div className="space-y-3">
+                      <h3 className="font-semibold text-white">2. Your Sending Wallet Address</h3>
+                      <p className="text-sm text-white/60">
+                        Enter the wallet address you&apos;ll send from so we can automatically verify your payment.
+                      </p>
+                      <Input
+                        placeholder="0x... or your wallet address"
+                        value={customerWallet}
+                        onChange={(e) => setCustomerWallet(e.target.value)}
+                        className="w-full bg-black/40 border-white/20 font-mono text-sm text-white"
+                      />
+                    </div>
+
+                    {/* Step 3: Send Payment */}
+                    {selectedPayment && (
+                      <div className="space-y-3">
+                        <h3 className="font-semibold text-white">3. Send Payment</h3>
+                        <p className="text-sm text-white/60">
+                          Send exactly <span className="text-white font-semibold">${total.toFixed(2)}</span> in{" "}
+                          <span className="text-white font-semibold">{selectedPayment.token}</span> to:
+                        </p>
+                        <div className="flex items-center gap-2 p-4 bg-black/40 border border-white/20 rounded-lg">
+                          <code className="flex-1 text-sm font-mono text-white/90 break-all">
+                            {selectedPayment.walletAddress}
+                          </code>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="flex-shrink-0 text-white/60 hover:text-white hover:bg-white/10"
+                            onClick={copyAddress}
+                          >
+                            {copied ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Error */}
+                    <AnimatePresence>
+                      {submitError && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="flex items-center gap-3 p-4 rounded-lg bg-red-500/20 border border-red-500/50"
+                        >
+                          <AlertCircle className="h-5 w-5 text-red-400" />
+                          <p className="text-sm text-red-300">{submitError}</p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Place Order Button */}
+                    <Button
+                      className="w-full h-12 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold"
+                      onClick={handleSubmit}
+                      disabled={
+                        !selectedPaymentId ||
+                        !customerWallet.trim() ||
+                        submitting ||
+                        acceptedPayments.length === 0
+                      }
+                    >
+                      {submitting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Placing Order...
+                        </>
+                      ) : (
+                        "Place Order & Get Payment Instructions"
+                      )}
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </motion.div>

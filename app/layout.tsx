@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Geist_Mono } from "next/font/google"
 import "./globals.css"
 import { ClientWrapper } from "@/components/client-wrapper"
+import { Providers } from "@/components/providers"
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -23,8 +24,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistMono.variable} antialiased`} suppressHydrationWarning>
-        <ClientWrapper />
-        <div className="relative z-10">{children}</div>
+        {/* <ClientWrapper /> */}
+        <Providers>
+          <div className="relative z-10 bg-black min-h-screen">{children}</div>
+        </Providers>
       </body>
     </html>
   )
