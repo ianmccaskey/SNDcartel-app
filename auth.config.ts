@@ -19,7 +19,10 @@ export const authConfig = {
 
       // Redirect logged-in users away from auth pages
       if (isAuthPage) {
-        if (isLoggedIn) return Response.redirect(new URL('/home', nextUrl))
+        if (isLoggedIn) {
+          const homeUrl = new URL('/home', process.env.NEXTAUTH_URL || nextUrl.origin)
+          return Response.redirect(homeUrl)
+        }
         return true
       }
 
@@ -30,7 +33,8 @@ export const authConfig = {
       if (isAdminPage) {
         const user = auth?.user as { role?: string } | undefined
         if (user?.role !== 'admin') {
-          return Response.redirect(new URL('/home', nextUrl))
+          const homeUrl = new URL('/home', process.env.NEXTAUTH_URL || nextUrl.origin)
+          return Response.redirect(homeUrl)
         }
       }
 
