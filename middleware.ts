@@ -14,6 +14,6 @@ export const config = {
      *  - api/auth/** (NextAuth routes — handled internally)
      *  - api/webhooks/** (Alchemy webhooks — have their own signature verification)
      */
-    '/((?!_next/static|_next/image|favicon.ico|api/auth|api/webhooks).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/).*)',
   ],
 }
