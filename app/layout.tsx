@@ -24,9 +24,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistMono.variable} antialiased`} suppressHydrationWarning>
-        {/* <ClientWrapper /> */}
+        <ClientWrapper />
         <Providers>
-          <div className="relative z-10 bg-black min-h-screen">{children}</div>
+          <div className="relative z-10 min-h-screen">{children}</div>
         </Providers>
       </body>
     </html>
