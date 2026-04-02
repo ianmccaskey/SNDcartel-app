@@ -1,10 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { AccountDetailsCard } from "@/components/account-details-card"
+import { ShippingAddressCard } from "@/components/shipping-address-card"
+import { WalletsCard } from "@/components/wallets-card"
+import { OrdersCard } from "@/components/orders-card"
+import { ErrorBoundary } from "@/components/error-boundary"
+import type { ApiOrder } from "@/components/orders-card"
+import type { Wallet } from "@/lib/types"
 
 interface UserProfile {
   id: string
@@ -20,55 +23,42 @@ interface UserProfile {
   profileComplete: boolean
 }
 
-interface Wallet {
-  id: string
-  chain: string
-  address: string
-}
-
 export default function AccountPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [wallets, setWallets] = useState<Wallet[]>([])
+  const [orders, setOrders] = useState<ApiOrder[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  // Form states
-  const [fullName, setFullName] = useState("")
-  const [discordName, setDiscordName] = useState("")
-  const [shippingLine1, setShippingLine1] = useState("")
-  const [shippingLine2, setShippingLine2] = useState("")
-  const [shippingCity, setShippingCity] = useState("")
-  const [shippingState, setShippingState] = useState("")
-  const [shippingZip, setShippingZip] = useState("")
-
-  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     async function loadData() {
       try {
-        // Load profile
-        const profileRes = await fetch("/api/users/me")
+        const [profileRes, walletsRes, ordersRes] = await Promise.all([
+          fetch("/api/users/me"),
+          fetch("/api/users/me/wallets"),
+          fetch("/api/orders"),
+        ])
+
         if (profileRes.ok) {
-          const profileData = await profileRes.json()
-          setProfile(profileData)
-          setFullName(profileData.fullName || "")
-          setDiscordName(profileData.discordName || "")
-          setShippingLine1(profileData.shippingLine1 || "")
-          setShippingLine2(profileData.shippingLine2 || "")
-          setShippingCity(profileData.shippingCity || "")
-          setShippingState(profileData.shippingState || "")
-          setShippingZip(profileData.shippingZip || "")
+          const data = await profileRes.json()
+          setProfile(data)
         }
 
-        // Load wallets
-        const walletsRes = await fetch("/api/users/me/wallets")
         if (walletsRes.ok) {
-          const walletsData = await walletsRes.json()
-          setWallets(walletsData)
+          const data = await walletsRes.json()
+          // Map DB wallets to the UI Wallet type
+          setWallets(
+            data.map((w: { id: string; chain: string; address: string }) => ({
+              id: w.id,
+              chain: w.chain as Wallet["chain"],
+              address: w.address,
+            })),
+          )
         }
 
-      } catch (err) {
-        setError(`Error loading data: ${err}`)
+        if (ordersRes.ok) {
+          const data = await ordersRes.json()
+          setOrders(data)
+        }
       } finally {
         setLoading(false)
       }
@@ -77,59 +67,64 @@ export default function AccountPage() {
     loadData()
   }, [])
 
-  const handleSaveProfile = async () => {
-    setSaving(true)
+  const handleSaveProfile = async (data: object) => {
     try {
       const res = await fetch("/api/users/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fullName,
-          discordName,
-          shippingLine1,
-          shippingLine2,
-          shippingCity,
-          shippingState,
-          shippingZip,
-        }),
+        body: JSON.stringify(data),
       })
       if (res.ok) {
         const updated = await res.json()
         setProfile(updated)
-        setError(null)
       } else {
-        setError(`Failed to save: ${res.status}`)
+        console.error("Failed to save profile:", res.status)
       }
-    } catch (err) {
-      setError(`Error saving: ${err}`)
-    } finally {
-      setSaving(false)
+    } catch (error) {
+      console.error("Error saving profile:", error)
     }
   }
 
-  if (loading) {
-    return (
-      <div className="relative min-h-screen bg-black text-white">
-        <div 
-          className="relative z-10 container mx-auto px-4"
-          style={{
-            WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, black 120px, black 100%)",
-          }}
-        >
-          <div className="mb-8 pt-32 md:pt-40">
-            <h1 className="text-4xl font-bold mb-2">Account Settings</h1>
-            <p className="text-muted-foreground">Loading...</p>
-          </div>
-        </div>
-      </div>
-    )
+  const handleAddWallet = async (wallet: Omit<Wallet, "id">) => {
+    try {
+      const res = await fetch("/api/users/me/wallets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chain: wallet.chain, address: wallet.address }),
+      })
+      if (res.ok) {
+        const newWallet = await res.json()
+        setWallets((prev) => [
+          ...prev,
+          { id: newWallet.id, chain: newWallet.chain as Wallet["chain"], address: newWallet.address },
+        ])
+      } else {
+        console.error("Failed to add wallet:", res.status)
+      }
+    } catch (error) {
+      console.error("Error adding wallet:", error)
+    }
+  }
+
+  const handleRemoveWallet = async (id: string) => {
+    try {
+      const res = await fetch(`/api/users/me/wallets/${id}`, { method: "DELETE" })
+      if (res.ok) {
+        setWallets((prev) => prev.filter((w) => w.id !== id))
+      } else {
+        console.error("Failed to remove wallet:", res.status)
+      }
+    } catch (error) {
+      console.error("Error removing wallet:", error)
+    }
   }
 
   return (
-    <div className="relative min-h-screen bg-black text-white">
-      <div 
-        className="relative z-10 container mx-auto px-4"
+    <div className="min-h-screen bg-transparent relative">
+      <div
+        className="container mx-auto px-4 py-8 max-w-6xl relative z-10"
         style={{
+          maskImage: "linear-gradient(to bottom, transparent 0%, black 120px, black 100%)",
           WebkitMaskImage: "linear-gradient(to bottom, transparent 0%, black 120px, black 100%)",
         }}
       >
@@ -138,142 +133,31 @@ export default function AccountPage() {
           <p className="text-muted-foreground">Manage your account details and preferences</p>
         </div>
 
-        {error && (
-          <div className="mb-6 p-4 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200">
-            {error}
+        {loading ? (
+          <div className="grid gap-6 md:grid-cols-2">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-48 rounded-xl bg-white/5 animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2">
+            <AccountDetailsCard
+              fullName={profile?.fullName ?? ""}
+              discordName={profile?.discordName ?? ""}
+              onSave={(data) => handleSaveProfile(data)}
+            />
+            <ShippingAddressCard
+              shippingLine1={profile?.shippingLine1 ?? ""}
+              shippingLine2={profile?.shippingLine2 ?? ""}
+              shippingCity={profile?.shippingCity ?? ""}
+              shippingState={profile?.shippingState ?? ""}
+              shippingZip={profile?.shippingZip ?? ""}
+              onSave={(data) => handleSaveProfile(data)}
+            />
+            <WalletsCard wallets={wallets} onAdd={handleAddWallet} onRemove={handleRemoveWallet} />
+            <OrdersCard orders={orders} />
           </div>
         )}
-
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Profile Details */}
-          <Card className="bg-background/80 backdrop-blur-md border-white/10">
-            <CardHeader>
-              <CardTitle>Profile Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  value={profile?.email || ""}
-                  disabled
-                  className="bg-white/5 border-white/10"
-                />
-              </div>
-              <div>
-                <Label htmlFor="fullName">Full Name</Label>
-                <Input
-                  id="fullName"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="bg-white/5 border-white/10"
-                />
-              </div>
-              <div>
-                <Label htmlFor="discordName">Discord Name</Label>
-                <Input
-                  id="discordName"
-                  value={discordName}
-                  onChange={(e) => setDiscordName(e.target.value)}
-                  className="bg-white/5 border-white/10"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Shipping Address */}
-          <Card className="bg-background/80 backdrop-blur-md border-white/10">
-            <CardHeader>
-              <CardTitle>Shipping Address</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="shippingLine1">Address Line 1</Label>
-                <Input
-                  id="shippingLine1"
-                  value={shippingLine1}
-                  onChange={(e) => setShippingLine1(e.target.value)}
-                  className="bg-white/5 border-white/10"
-                />
-              </div>
-              <div>
-                <Label htmlFor="shippingLine2">Address Line 2</Label>
-                <Input
-                  id="shippingLine2"
-                  value={shippingLine2}
-                  onChange={(e) => setShippingLine2(e.target.value)}
-                  className="bg-white/5 border-white/10"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label htmlFor="shippingCity">City</Label>
-                  <Input
-                    id="shippingCity"
-                    value={shippingCity}
-                    onChange={(e) => setShippingCity(e.target.value)}
-                    className="bg-white/5 border-white/10"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="shippingState">State</Label>
-                  <Input
-                    id="shippingState"
-                    value={shippingState}
-                    onChange={(e) => setShippingState(e.target.value)}
-                    className="bg-white/5 border-white/10"
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="shippingZip">ZIP Code</Label>
-                <Input
-                  id="shippingZip"
-                  value={shippingZip}
-                  onChange={(e) => setShippingZip(e.target.value)}
-                  className="bg-white/5 border-white/10"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Crypto Wallets */}
-          <Card className="bg-background/80 backdrop-blur-md border-white/10">
-            <CardHeader>
-              <CardTitle>Crypto Wallets</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {wallets.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No wallets added yet.</p>
-              ) : (
-                <div className="space-y-3">
-                  {wallets.map((wallet) => (
-                    <div key={wallet.id} className="flex items-center justify-between p-3 border rounded-lg border-white/10">
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium">{wallet.chain}</div>
-                        <div className="text-xs text-muted-foreground truncate">{wallet.address}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Save Button */}
-          <div className="md:col-span-2">
-            <Button 
-              onClick={handleSaveProfile}
-              disabled={saving}
-              className="w-full md:w-auto"
-            >
-              {saving ? "Saving..." : "[Save Changes]"}
-            </Button>
-            {profile?.profileComplete && (
-              <p className="text-sm text-green-400 mt-2">✓ Profile is complete</p>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   )
