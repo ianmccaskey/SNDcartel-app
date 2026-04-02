@@ -20,21 +20,15 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <AnimatePresence mode="popLayout" initial={false}>
+    <AnimatePresence mode="wait" initial={false}>
       <motion.div
         key={pathname}
-        initial={{
-          opacity: 0,
-        }}
-        animate={{
-          opacity: 1,
-        }}
-        exit={{
-          opacity: 0,
-        }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
         transition={{
-          duration: prefersReducedMotion ? 0 : 0.3,
-          ease: [0.25, 0.1, 0.25, 1],
+          duration: prefersReducedMotion ? 0 : 0.15,
+          ease: "easeInOut",
         }}
       >
         {children}
