@@ -15,14 +15,18 @@ interface AccountDetailsCardProps {
 export function AccountDetailsCard({ fullName: initialFullName, discordName: initialDiscordName, onSave }: AccountDetailsCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [fullName, setFullName] = useState(initialFullName)
   const [discordName, setDiscordName] = useState(initialDiscordName)
 
   const handleSave = async () => {
     setSaving(true)
+    setError(null)
     try {
       await onSave({ fullName, discordName })
       setIsEditing(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save failed")
     } finally {
       setSaving(false)
     }
@@ -43,6 +47,9 @@ export function AccountDetailsCard({ fullName: initialFullName, discordName: ini
         )}
       </CardHeader>
       <CardContent className="space-y-4">
+        {error && (
+          <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm">{error}</div>
+        )}
         <div>
           <Label htmlFor="fullName">Full Name</Label>
           <Input

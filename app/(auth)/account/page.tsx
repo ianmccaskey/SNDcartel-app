@@ -68,21 +68,17 @@ export default function AccountPage() {
   }, [])
 
   const handleSaveProfile = async (data: object) => {
-    try {
-      const res = await fetch("/api/users/me", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      })
-      if (res.ok) {
-        const updated = await res.json()
-        setProfile(updated)
-      } else {
-        console.error("Failed to save profile:", res.status)
-      }
-    } catch (error) {
-      console.error("Error saving profile:", error)
+    const res = await fetch("/api/users/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Unknown error" }))
+      throw new Error(err.error || `Save failed (${res.status})`)
     }
+    const updated = await res.json()
+    setProfile(updated)
   }
 
   const handleAddWallet = async (wallet: Omit<Wallet, "id">) => {

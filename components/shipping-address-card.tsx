@@ -33,6 +33,7 @@ export function ShippingAddressCard({
 }: ShippingAddressCardProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [line1, setLine1] = useState(initialLine1)
   const [line2, setLine2] = useState(initialLine2)
   const [city, setCity] = useState(initialCity)
@@ -41,6 +42,7 @@ export function ShippingAddressCard({
 
   const handleSave = async () => {
     setSaving(true)
+    setError(null)
     try {
       await onSave({
         shippingLine1: line1,
@@ -50,6 +52,8 @@ export function ShippingAddressCard({
         shippingZip: zip,
       })
       setIsEditing(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save failed")
     } finally {
       setSaving(false)
     }
@@ -70,6 +74,9 @@ export function ShippingAddressCard({
         )}
       </CardHeader>
       <CardContent className="space-y-4">
+        {error && (
+          <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-200 text-sm">{error}</div>
+        )}
         <div>
           <Label htmlFor="line1">Address Line 1</Label>
           <Input
