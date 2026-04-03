@@ -8,7 +8,8 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
   experimental: {
-    allowedDevOrigins: ['192.168.18.5']
+    allowedDevOrigins: ['192.168.18.5'],
+    viewTransition: true,
   }
 };
 

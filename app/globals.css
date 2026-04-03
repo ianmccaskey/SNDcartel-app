@@ -73,17 +73,21 @@ body {
   height: 100%;
 }
 
-@keyframes page-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/* View Transition crossfade */
+::view-transition-old(root) {
+  animation: fade-out 0.2s ease-in forwards;
 }
 
-.animate-page-in {
-  animation: page-in 0.3s ease-out both;
+::view-transition-new(root) {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

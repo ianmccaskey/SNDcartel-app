@@ -1,17 +1,10 @@
 "use client"
 
 import type React from "react"
-import { usePathname } from "next/navigation"
 
+// With viewTransition enabled in next.config.ts, the browser handles
+// crossfade transitions natively. This wrapper just passes children through.
+// The animation is defined in globals.css via ::view-transition pseudo-elements.
 export function RouteTransition({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
-
-  return (
-    <div
-      key={pathname}
-      className="animate-page-in"
-    >
-      {children}
-    </div>
-  )
+  return <>{children}</>
 }
