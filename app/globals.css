@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+html {
+  overflow-y: scroll;
+}
+
 @font-face {
   font-family: 'Sentient';
   src: url('/Sentient-Extralight.woff') format('woff');
