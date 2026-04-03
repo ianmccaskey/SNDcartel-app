@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { StoreProduct } from "@/lib/admin-types"
-import { Plus, Edit2, Save, X, Loader2 } from "lucide-react"
+import { Plus, Edit2, Save, X, Loader2, Upload, Image as ImageIcon } from "lucide-react"
 
 export function StoreManagement() {
   const [products, setProducts] = useState<StoreProduct[]>([])
@@ -15,6 +15,7 @@ export function StoreManagement() {
   const [editForm, setEditForm] = useState<Partial<StoreProduct>>({})
   const [loading, setLoading] = useState(false)
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // ── Load ──────────────────────────────────────────────────────────────────
@@ -82,6 +83,7 @@ export function StoreManagement() {
           category: editForm.category,
           price: editForm.price,
           available: editForm.available,
+          imageUrl: editForm.imageUrl,
         }),
       })
       if (!res.ok) throw new Error(await res.text())
@@ -94,6 +96,29 @@ export function StoreManagement() {
       console.error(e)
     } finally {
       setSavingId(null)
+    }
+  }
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadingImage(true)
+    setError(null)
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+      const res = await fetch("/api/admin/uploads", { method: "POST", body: formData })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Upload failed" }))
+        throw new Error(err.error || "Upload failed")
+      }
+      const { url } = await res.json()
+      setEditForm((prev) => ({ ...prev, imageUrl: url }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Image upload failed")
+    } finally {
+      setUploadingImage(false)
     }
   }
 
@@ -180,6 +205,7 @@ export function StoreManagement() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Image</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Description</TableHead>
                   <TableHead>Category</TableHead>
@@ -193,6 +219,22 @@ export function StoreManagement() {
                   <TableRow key={product.id}>
                     {editingId === product.id ? (
                       <>
+                        <TableCell>
+                          <div className="flex flex-col items-center gap-1">
+                            {editForm.imageUrl ? (
+                              <img src={editForm.imageUrl} alt="" className="w-12 h-12 rounded object-cover border border-white/10" />
+                            ) : (
+                              <div className="w-12 h-12 rounded border border-white/10 bg-white/5 flex items-center justify-center">
+                                <ImageIcon className="w-5 h-5 text-muted-foreground/40" />
+                              </div>
+                            )}
+                            <label className="cursor-pointer text-xs text-yellow-500 hover:text-yellow-400 flex items-center gap-1">
+                              {uploadingImage ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                              {uploadingImage ? "..." : "Upload"}
+                              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploadingImage} />
+                            </label>
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <Input
                             value={editForm.name || ""}
@@ -245,6 +287,15 @@ export function StoreManagement() {
                       </>
                     ) : (
                       <>
+                        <TableCell>
+                          {product.imageUrl ? (
+                            <img src={product.imageUrl} alt={product.name} className="w-12 h-12 rounded object-cover border border-white/10" />
+                          ) : (
+                            <div className="w-12 h-12 rounded border border-white/10 bg-white/5 flex items-center justify-center">
+                              <ImageIcon className="w-5 h-5 text-muted-foreground/40" />
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell className="font-medium">{product.name}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{product.description}</TableCell>
                         <TableCell className="text-sm">{product.category}</TableCell>

@@ -83,6 +83,7 @@ export interface StoreProduct {
   price: number
   available: boolean
   category: string
+  imageUrl?: string | null
   createdAt: string
 }
 
