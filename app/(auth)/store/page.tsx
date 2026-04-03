@@ -159,15 +159,30 @@ export default function StorePage() {
                   >
                     <Card className="bg-background/80 backdrop-blur-md border-white/10 shadow-lg h-full flex flex-col">
                       <CardHeader>
-                        <div className="flex items-start justify-between">
-                          <CardTitle className="text-lg">{product.name}</CardTitle>
-                          {!product.available && (
-                            <Badge variant="secondary" className="text-xs">
-                              Out of Stock
-                            </Badge>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="text-lg">{product.name}</CardTitle>
+                            {!product.available && (
+                              <Badge variant="secondary" className="text-xs mt-1">
+                                Out of Stock
+                              </Badge>
+                            )}
+                            <CardDescription className="text-sm mt-1">{product.description}</CardDescription>
+                          </div>
+                          {product.imageUrl ? (
+                            <div className="w-20 h-20 rounded-lg overflow-hidden border border-white/10 flex-shrink-0">
+                              <img
+                                src={product.imageUrl}
+                                alt={product.name}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-20 h-20 rounded-lg border border-white/10 flex-shrink-0 flex items-center justify-center bg-white/5">
+                              <Package className="h-8 w-8 text-muted-foreground/40" />
+                            </div>
                           )}
                         </div>
-                        <CardDescription className="text-sm">{product.description}</CardDescription>
                       </CardHeader>
                       <CardContent className="flex-1">
                         <div className="flex items-baseline gap-2">

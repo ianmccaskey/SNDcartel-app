@@ -27,23 +27,21 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
       setMinHeight(containerRef.current.offsetHeight)
     }
     // Clear min height after new content settles
-    const timeout = setTimeout(() => setMinHeight(undefined), 400)
+    const timeout = setTimeout(() => setMinHeight(undefined), 500)
     return () => clearTimeout(timeout)
   }, [pathname])
-
-  const duration = prefersReducedMotion ? 0 : 0.2
 
   return (
     <div ref={containerRef} style={{ minHeight: minHeight ? `${minHeight}px` : undefined }}>
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={pathname}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: prefersReducedMotion ? 0 : -10 }}
           transition={{
-            duration,
-            ease: [0.4, 0, 0.2, 1],
+            duration: prefersReducedMotion ? 0 : 0.35,
+            ease: [0.25, 0.1, 0.25, 1],
           }}
         >
           {children}
