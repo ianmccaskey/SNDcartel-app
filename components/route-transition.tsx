@@ -2,16 +2,17 @@
 
 import type React from "react"
 import { usePathname } from "next/navigation"
-import { useRef, useState, useLayoutEffect, useCallback } from "react"
+import { useRef, useState, useLayoutEffect, useEffect, useCallback } from "react"
 import gsap from "gsap"
 
 export function RouteTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const containerRef = useRef<HTMLDivElement>(null)
-  const prevPathname = useRef(pathname)
+  const prevPathname = useRef<string | null>(null)
   const [displayChildren, setDisplayChildren] = useState(children)
   const isAnimating = useRef(false)
   const pendingChildren = useRef<React.ReactNode>(null)
+  const hasMounted = useRef(false)
 
   const animateIn = useCallback(() => {
     const el = containerRef.current
@@ -26,7 +27,6 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
       ease: "power3.out",
       onComplete: () => {
         isAnimating.current = false
-        // If another navigation happened during animation, run it now
         if (pendingChildren.current) {
           const next = pendingChildren.current
           pendingChildren.current = null
@@ -53,17 +53,30 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
         ease: "power2.in",
         onComplete: () => {
           setDisplayChildren(nextChildren)
-          // animateIn will be triggered by the useLayoutEffect below
         },
       })
     },
     [],
   )
 
-  // Detect route change
+  // Initial mount — show content immediately with a fade in
+  useEffect(() => {
+    if (!hasMounted.current && containerRef.current) {
+      hasMounted.current = true
+      animateIn()
+    }
+  }, [animateIn])
+
+  // Route changes after initial mount
   useLayoutEffect(() => {
+    if (!hasMounted.current) return
+
+    if (prevPathname.current === null) {
+      prevPathname.current = pathname
+      return
+    }
+
     if (pathname === prevPathname.current) {
-      // Same route, just update children (e.g. data refresh)
       setDisplayChildren(children)
       return
     }
@@ -71,7 +84,6 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
     prevPathname.current = pathname
 
     if (isAnimating.current) {
-      // Queue this navigation
       pendingChildren.current = children
       return
     }
@@ -79,9 +91,11 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
     animateOut(children)
   }, [pathname, children, animateOut])
 
-  // Animate in when displayChildren changes (after exit completes)
+  // Animate in after displayChildren swap (from animateOut completing)
   useLayoutEffect(() => {
-    if (containerRef.current) {
+    if (!hasMounted.current) return
+    // Only animate in if we're mid-transition (displayChildren was swapped by animateOut)
+    if (isAnimating.current) {
       animateIn()
     }
   }, [displayChildren, animateIn])
