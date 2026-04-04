@@ -1,7 +1,14 @@
 @import "tailwindcss";
 
 html {
-  overflow-y: scroll;
+  overflow-y: scroll !important;
+}
+
+/* Prevent Radix UI from hiding scrollbar when dropdowns/dialogs open */
+body[data-scroll-locked] {
+  overflow-y: scroll !important;
+  margin-right: 0 !important;
+  padding-right: 0 !important;
 }
 
 @font-face {
