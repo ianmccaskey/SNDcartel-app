@@ -496,7 +496,7 @@ export function CampaignManagement() {
                 <SelectTrigger className="bg-black/40 border-white/20 text-white">
                   <SelectValue placeholder="Select a campaign" />
                 </SelectTrigger>
-                <SelectContent className="bg-black/95 backdrop-blur-md border-white/20">
+                <SelectContent className="bg-black/95 backdrop-blur-md border-white/20 text-white" position="popper" sideOffset={4}>
                   {campaigns.map((campaign) => (
                     <SelectItem key={campaign.id} value={campaign.id}>
                       {campaign.name || "Untitled Campaign"} ({campaign.status})
@@ -744,7 +744,7 @@ export function CampaignManagement() {
                           <SelectTrigger className="bg-black/40 border-white/20 text-white h-11">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent className="bg-black/95 backdrop-blur-md border-white/20 accepted-payments-crypto-select">
+                          <SelectContent className="bg-black/95 backdrop-blur-md border-white/20 text-white" position="popper" sideOffset={4}>
                             {CRYPTO_OPTIONS.map((option) => (
                               <SelectItem key={option} value={option} className="text-white">
                                 {option}
@@ -817,7 +817,7 @@ export function CampaignManagement() {
                           <SelectTrigger className="bg-black/40 border-white/20 text-white">
                             <SelectValue placeholder="Select or create peptide..." />
                           </SelectTrigger>
-                          <SelectContent className="bg-black/95 backdrop-blur-md border-white/20 products-peptide-select">
+                          <SelectContent className="bg-black/95 backdrop-blur-md border-white/20 text-white" position="popper" sideOffset={4}>
                             {PEPTIDE_OPTIONS.map((option) => (
                               <SelectItem key={option} value={option}>
                                 {option}
@@ -1075,7 +1075,7 @@ export function CampaignManagement() {
                           <SelectTrigger className="bg-black/40 border-white/20 text-white text-sm h-10">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent className="bg-black/95 backdrop-blur-md border-white/20 box-unit-select">
+                          <SelectContent className="bg-black/95 backdrop-blur-md border-white/20 text-white" position="popper" sideOffset={4}>
                             <SelectItem value="in">in</SelectItem>
                             <SelectItem value="cm">cm</SelectItem>
                           </SelectContent>
@@ -1207,7 +1207,7 @@ export function CampaignManagement() {
                             <SelectTrigger className="bg-black/40 border-white/20 text-white">
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent className="bg-black/95 backdrop-blur-md border-white/20">
+                            <SelectContent className="bg-black/95 backdrop-blur-md border-white/20 text-white" position="popper" sideOffset={4}>
                               {CRYPTO_OPTIONS.map((opt) => (
                                 <SelectItem key={opt} value={opt}>
                                   {opt}
