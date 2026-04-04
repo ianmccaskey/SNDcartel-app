@@ -1,10 +1,24 @@
 "use client"
 
+import { useEffect } from "react"
 import type * as React from "react"
 import * as SelectPrimitive from "@radix-ui/react-select"
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+
+// Prevent react-remove-scroll from shifting the page layout
+function usePreventScrollShift() {
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      document.body.style.removeProperty("overflow")
+      document.body.style.removeProperty("padding-right")
+      document.body.style.removeProperty("margin-right")
+    })
+    observer.observe(document.body, { attributes: true, attributeFilter: ["style"] })
+    return () => observer.disconnect()
+  }, [])
+}
 
 function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) {
   return <SelectPrimitive.Root data-slot="select" {...props} />
@@ -50,6 +64,7 @@ function SelectContent({
   position = "popper",
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
+  usePreventScrollShift()
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
