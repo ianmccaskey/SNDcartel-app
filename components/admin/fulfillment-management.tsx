@@ -179,7 +179,7 @@ function MarkShippedModal({ orders, onClose, onSuccess }: MarkShippedModalProps)
               <SelectTrigger className="bg-white/5 border-white/10 text-white">
                 <SelectValue placeholder="Select carrier..." />
               </SelectTrigger>
-              <SelectContent className="bg-black/90 border-white/20">
+              <SelectContent className="bg-black/90 border-white/20" position="popper" sideOffset={4}>
                 {CARRIERS.map((c) => (
                   <SelectItem key={c} value={c}>{c}</SelectItem>
                 ))}
@@ -460,7 +460,7 @@ export function FulfillmentManagement() {
             <SelectTrigger className="bg-white/5 border-white/10 text-white">
               <SelectValue placeholder="All Group Buys" />
             </SelectTrigger>
-            <SelectContent className="bg-black/90 border-white/20">
+            <SelectContent className="bg-black/90 border-white/20" position="popper" sideOffset={4}>
               <SelectItem value="all">All Group Buys</SelectItem>
               {groupBuys.map((gb) => (
                 <SelectItem key={gb.id} value={gb.id}>{gb.name}</SelectItem>
@@ -474,7 +474,7 @@ export function FulfillmentManagement() {
             <SelectTrigger className="bg-white/5 border-white/10 text-white">
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
-            <SelectContent className="bg-black/90 border-white/20">
+            <SelectContent className="bg-black/90 border-white/20" position="popper" sideOffset={4}>
               <SelectItem value="all">All Statuses</SelectItem>
               {FULFILLMENT_ORDER.map((s) => (
                 <SelectItem key={s} value={s}>{formatStatus(s)}</SelectItem>
