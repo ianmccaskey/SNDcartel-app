@@ -18,17 +18,15 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
     gsap.killTweensOf(el)
 
     if (firstRender.current) {
-      // First page load — just fade in
       firstRender.current = false
       gsap.fromTo(el,
-        { opacity: 0, y: 10 },
-        { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }
+        { opacity: 0, y: 24 },
+        { opacity: 1, y: 0, duration: 0.7, ease: "power4.out" }
       )
     } else {
-      // Route change — content already swapped by React, just animate in
       gsap.fromTo(el,
-        { opacity: 0, y: 10 },
-        { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.6, ease: "power4.out" }
       )
     }
   }, [pathname])
