@@ -366,7 +366,7 @@ export function PaymentVerification() {
             {detailLoading ? (
               <p className="text-muted-foreground text-sm">Loading detail...</p>
             ) : (
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
                   <Label className="text-gray-400">Payment ID</Label>
                   <p className="font-mono text-xs text-white">{selectedPayment.id}</p>

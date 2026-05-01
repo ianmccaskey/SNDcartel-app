@@ -837,7 +837,7 @@ export function CampaignManagement() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label className="text-white font-medium">MOQ (Kits)</Label>
                         <Input
@@ -871,7 +871,7 @@ export function CampaignManagement() {
                       <Label className="text-white font-medium text-sm">
                         Product Dimensions (for fulfillment box calculation)
                       </Label>
-                      <div className="grid grid-cols-4 gap-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         {(["length", "width", "height"] as const).map((dim) => (
                           <div key={dim} className="space-y-2">
                             <Label className="text-gray-400 text-xs h-5 capitalize">{dim} (in)</Label>
@@ -1044,7 +1044,7 @@ export function CampaignManagement() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       {(["length", "width", "height"] as const).map((dim) => (
                         <div key={dim} className="space-y-2">
                           <Label className="text-gray-400 text-xs capitalize">
@@ -1140,7 +1140,7 @@ export function CampaignManagement() {
                   Set post-campaign fees and provide payment info for final settlement.
                 </p>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-white font-medium">Admin Fee (USD)</Label>
                     <div className="relative">

@@ -427,7 +427,7 @@ export function UserDetailOverlay({ userId, onClose, onUpdated }: UserDetailOver
                 {/* User Information */}
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-[#FFC700]">User Information</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label className="text-gray-400">User ID</Label>
                       <p className="text-white font-mono text-xs">{user.id}</p>
@@ -686,7 +686,7 @@ export function UserDetailOverlay({ userId, onClose, onUpdated }: UserDetailOver
                             </div>
 
                             {/* Order Details */}
-                            <div className="grid grid-cols-3 gap-4 text-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                               <div>
                                 <span className="text-gray-400 block">Status</span>
                                 {isEditingStatus ? (
