@@ -11,7 +11,7 @@ import { Package } from "lucide-react"
 import Link from "next/link"
 
 // Default placeholder served from /public when a group buy has no imageUrl.
-const DEFAULT_GROUP_BUY_IMAGE = "/sndvial.mp4"
+const DEFAULT_GROUP_BUY_IMAGE = "/SNDvial.mp4"
 
 // Detect video sources so we can render <video> instead of <img>. Matches the
 // extension at the end of the path (allowing for query strings).
