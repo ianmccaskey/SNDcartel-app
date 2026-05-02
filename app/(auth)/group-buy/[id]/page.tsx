@@ -192,6 +192,19 @@ export default function GroupBuyPage() {
   const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0)
 
+  // On mobile, scroll the page back to the top before opening the checkout
+  // overlay so the user perceives the panel sliding up to where the
+  // payment options + wallet inputs are. On desktop the overlay centers
+  // itself so the scroll is a no-op.
+  const handleProceedToCheckout = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      window.scrollTo({ top: 0, behavior: "smooth" })
+      setTimeout(() => setIsCheckoutOpen(true), 400)
+    } else {
+      setIsCheckoutOpen(true)
+    }
+  }
+
   const getProgressColor = (current: number, goal: number) => {
     const percentage = (current / goal) * 100
     if (percentage >= 100) return "bg-green-500"
@@ -552,7 +565,7 @@ export default function GroupBuyPage() {
                               className="w-full bg-yellow-600 hover:bg-yellow-700 text-white"
                               size="lg"
                               disabled={groupBuy.status === "ended"}
-                              onClick={() => setIsCheckoutOpen(true)}
+                              onClick={handleProceedToCheckout}
                             >
                               <CheckCircle2 className="mr-2 h-4 w-4" />
                               Proceed to Checkout

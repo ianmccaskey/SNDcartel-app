@@ -22,6 +22,13 @@ interface AcceptedPayment {
   walletAddress: string
 }
 
+interface UserWallet {
+  id: string
+  chain: string
+  address: string
+  label?: string | null
+}
+
 interface CheckoutOverlayProps {
   isOpen: boolean
   onClose: () => void
@@ -44,6 +51,10 @@ export function CheckoutOverlay({
   const router = useRouter()
   const [selectedPaymentId, setSelectedPaymentId] = useState("")
   const [customerWallet, setCustomerWallet] = useState("")
+  // Track whether the wallet was auto-filled vs typed by the user, so we know
+  // when it's safe to overwrite on payment-method change.
+  const [walletAutoFilled, setWalletAutoFilled] = useState(false)
+  const [userWallets, setUserWallets] = useState<UserWallet[]>([])
   const [copied, setCopied] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [orderId, setOrderId] = useState<string | null>(null)
@@ -51,6 +62,39 @@ export function CheckoutOverlay({
   const [pollStatus, setPollStatus] = useState<"idle" | "polling" | "verified" | "error">("idle")
 
   const selectedPayment = acceptedPayments.find((p) => p.id === selectedPaymentId)
+
+  // Fetch the user's saved wallets when the overlay opens. The list is small
+  // and rarely changes, so a single fetch on open is fine.
+  useEffect(() => {
+    if (!isOpen) return
+    let cancelled = false
+    fetch("/api/users/me/wallets")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data: UserWallet[]) => {
+        if (!cancelled && Array.isArray(data)) setUserWallets(data)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen])
+
+  // When the user picks a payment option, auto-fill their sending wallet
+  // from the matching saved wallet (matched by chain == network, case
+  // insensitive). Only auto-fill if the field is empty or was previously
+  // auto-filled — never overwrite a value the user typed manually.
+  useEffect(() => {
+    if (!selectedPayment) return
+    const match = userWallets.find(
+      (w) => w.chain.toLowerCase() === selectedPayment.network.toLowerCase(),
+    )
+    if (!match) return
+    setCustomerWallet((prev) => {
+      if (prev && !walletAutoFilled) return prev // user typed something — keep it
+      return match.address
+    })
+    setWalletAutoFilled(true)
+  }, [selectedPaymentId, selectedPayment, userWallets, walletAutoFilled])
 
   const copyAddress = async () => {
     if (selectedPayment) {
@@ -139,6 +183,7 @@ export function CheckoutOverlay({
   const handleClose = () => {
     setSelectedPaymentId("")
     setCustomerWallet("")
+    setWalletAutoFilled(false)
     setSubmitError(null)
     setPollStatus("idle")
     setOrderId(null)
@@ -306,12 +351,24 @@ export function CheckoutOverlay({
                     <div className="space-y-3">
                       <h3 className="font-semibold text-white">2. Your Sending Wallet Address</h3>
                       <p className="text-sm text-white/60">
-                        Enter the wallet address you&apos;ll send from so we can automatically verify your payment.
+                        {walletAutoFilled && selectedPayment ? (
+                          <>
+                            Pre-filled from your saved {selectedPayment.network} wallet. You can edit if you&apos;ll
+                            send from a different one.
+                          </>
+                        ) : (
+                          <>
+                            Enter the wallet address you&apos;ll send from so we can automatically verify your payment.
+                          </>
+                        )}
                       </p>
                       <Input
                         placeholder="0x... or your wallet address"
                         value={customerWallet}
-                        onChange={(e) => setCustomerWallet(e.target.value)}
+                        onChange={(e) => {
+                          setCustomerWallet(e.target.value)
+                          setWalletAutoFilled(false)
+                        }}
                         className="w-full bg-black/40 border-white/20 font-mono text-sm text-white"
                       />
                     </div>
