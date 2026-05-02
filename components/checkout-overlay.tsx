@@ -412,26 +412,31 @@ export function CheckoutOverlay({
                       )}
                     </AnimatePresence>
 
-                    {/* Place Order Button */}
-                    <Button
-                      className="w-full h-12 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold"
-                      onClick={handleSubmit}
-                      disabled={
-                        !selectedPaymentId ||
-                        !customerWallet.trim() ||
-                        submitting ||
-                        acceptedPayments.length === 0
-                      }
-                    >
-                      {submitting ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Placing Order...
-                        </>
-                      ) : (
-                        "Place Order & Get Payment Instructions"
-                      )}
-                    </Button>
+                    {/* Verify Payment Button */}
+                    <div className="space-y-2">
+                      <p className="text-xs text-white/60 text-center">
+                        Only verify once payment has been sent
+                      </p>
+                      <Button
+                        className="w-full h-12 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold"
+                        onClick={handleSubmit}
+                        disabled={
+                          !selectedPaymentId ||
+                          !customerWallet.trim() ||
+                          submitting ||
+                          acceptedPayments.length === 0
+                        }
+                      >
+                        {submitting ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Verifying...
+                          </>
+                        ) : (
+                          "Verify Payment"
+                        )}
+                      </Button>
+                    </div>
                   </>
                 )}
               </div>
