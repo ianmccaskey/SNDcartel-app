@@ -5,7 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { AccountWarningBanner } from "@/components/account-warning-banner"
+import { pickProductIcon } from "@/lib/product-icons"
 import Link from "next/link"
+
+interface ActiveGroupBuyProduct {
+  id: string
+  name: string
+}
 
 interface ActiveGroupBuy {
   id: string
@@ -15,6 +21,7 @@ interface ActiveGroupBuy {
   totalKitsOrdered: number
   totalMoqGoal: number
   imageUrl: string | null
+  products: ActiveGroupBuyProduct[]
 }
 
 function GroupBuySkeleton() {
@@ -109,18 +116,23 @@ export default function HomePage() {
                         )}
                       </div>
                       <p className="text-sm text-muted-foreground mb-2">{buy.description}</p>
-                      {/* MOQ progress */}
-                      <div className="mb-3">
-                        <div className="relative h-1.5 rounded-full bg-black/30 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all ${progressPct >= 100 ? "bg-green-500" : "bg-yellow-500"}`}
-                            style={{ width: `${progressPct}%` }}
-                          />
+                      <p className="text-xs text-muted-foreground mb-3">
+                        {buy.totalKitsOrdered} / {buy.totalMoqGoal} kits ({progressPct}%)
+                      </p>
+                      {buy.products && buy.products.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-3" aria-label="Available products">
+                          {buy.products.map((p) => {
+                            const Icon = pickProductIcon(p.name)
+                            return (
+                              <Link key={p.id} href={`/group-buy/${buy.id}`} title={p.name}>
+                                <Button variant="secondary" size="icon" aria-label={p.name}>
+                                  <Icon className="size-4" />
+                                </Button>
+                              </Link>
+                            )
+                          })}
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {buy.totalKitsOrdered} / {buy.totalMoqGoal} kits ({progressPct}%)
-                        </p>
-                      </div>
+                      )}
                       <Link href={`/group-buy/${buy.id}`}>
                         <Button size="sm" className="bg-yellow-600 hover:bg-yellow-700" disabled={!isAccountComplete}>
                           Participate
