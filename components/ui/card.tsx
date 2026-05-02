@@ -7,7 +7,13 @@ function Card({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot="card"
       className={cn(
-        'bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm',
+        // overflow-hidden clips any descendant whose box extends past the
+        // card boundary — specifically the cyber Button's chamfer decoration
+        // spans (which use translate-x-1/2 / -translate-x-1/2 to position
+        // half-off each edge). Without this, those spans push the card's
+        // scrollWidth past the viewport on narrow mobile layouts — observed
+        // cutting off "EDIT" buttons and status badges on Samsung S23+.
+        'bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm overflow-hidden',
         className,
       )}
       {...props}
