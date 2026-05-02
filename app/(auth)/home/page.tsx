@@ -137,7 +137,13 @@ export default function HomePage() {
                         {/* Left column on md+, full width on phone */}
                         <div>
                           <div className="flex items-start justify-between gap-2 mb-2">
-                            <h3 className="font-medium">{buy.title}</h3>
+                            <h3 className="text-lg font-bold flex flex-1 min-w-0 gap-2 items-baseline">
+                              <span
+                                aria-hidden
+                                className="inline-block size-2 rounded-full bg-primary shadow-glow shadow-primary/50 animate-pulse shrink-0 self-center"
+                              />
+                              <span className="break-words">{buy.title}</span>
+                            </h3>
                             {buy.endDate && (
                               <Badge variant="outline" className="shrink-0">
                                 Ends {new Date(buy.endDate).toLocaleDateString()}
