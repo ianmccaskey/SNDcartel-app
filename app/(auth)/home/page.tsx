@@ -10,6 +10,9 @@ import { cn } from "@/lib/utils"
 import { Package } from "lucide-react"
 import Link from "next/link"
 
+// Default placeholder served from /public when a group buy has no imageUrl.
+const DEFAULT_GROUP_BUY_IMAGE = "/group-buy-placeholder.jpg"
+
 function GroupBuyImageBox({
   imageUrl,
   title,
@@ -19,6 +22,9 @@ function GroupBuyImageBox({
   title: string
   className?: string
 }) {
+  const [imgFailed, setImgFailed] = useState(false)
+  const src = imageUrl || DEFAULT_GROUP_BUY_IMAGE
+
   return (
     <div
       className={cn(
@@ -26,12 +32,17 @@ function GroupBuyImageBox({
         className,
       )}
     >
-      {imageUrl ? (
-        <img src={imageUrl} alt={title} className="w-full h-full object-cover" />
-      ) : (
+      {imgFailed ? (
         <div className="w-full h-full flex items-center justify-center">
           <Package className="size-8 text-white/30" />
         </div>
+      ) : (
+        <img
+          src={src}
+          alt={title}
+          className="w-full h-full object-cover"
+          onError={() => setImgFailed(true)}
+        />
       )}
     </div>
   )
