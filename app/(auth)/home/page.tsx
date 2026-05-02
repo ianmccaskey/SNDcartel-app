@@ -11,7 +11,7 @@ import { Package } from "lucide-react"
 import Link from "next/link"
 
 // Default placeholder served from /public when a group buy has no imageUrl.
-const DEFAULT_GROUP_BUY_IMAGE = "/group-buy-placeholder.jpg"
+const DEFAULT_GROUP_BUY_IMAGE = "/40a7640a0_SND_GB2.gif"
 
 function GroupBuyImageBox({
   imageUrl,
