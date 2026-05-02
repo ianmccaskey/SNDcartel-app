@@ -142,32 +142,31 @@ export default function HomePage() {
                         </Badge>
                       )}
                       {/*
-                        Mobile (auto-placement): title col-span-2 fills row 1,
-                        image auto-places at row 2 col 1, description at row 2
-                        col 2, pills/button col-span-2 fill rows 3 and 4.
-                        Desktop (explicit): image fills col 1 rows 1-4 as the
-                        primary left visual; title / description / pills /
-                        button stack in col 2 rows 1-4 to the right.
+                        2-column grid. Image is top-left in col 1 (row-span-1
+                        on phone, row-span-3 on md+). Title and description
+                        live together in col 2 row 1. Pills and Participate
+                        sit in col 2 on md+ (md:col-start-2) and span both
+                        cols full-width on phone (col-span-2).
                       */}
                       <div className="grid grid-cols-[auto_1fr] gap-x-3 md:gap-x-4 gap-y-3 items-start">
-                        <h3 className="col-span-2 md:col-span-1 md:col-start-2 md:row-start-1 text-lg font-bold pr-32 break-words min-w-0">
-                          <span
-                            aria-hidden
-                            className="inline-block size-2 rounded-full bg-primary shadow-glow shadow-primary/50 animate-pulse mr-2 align-middle"
-                          />
-                          {buy.title}
-                        </h3>
                         <GroupBuyImageBox
                           imageUrl={buy.imageUrl}
                           title={buy.title}
-                          className="w-20 sm:w-24 md:w-40 lg:w-48 md:col-start-1 md:row-start-1 md:row-span-4 self-start"
+                          className="w-20 sm:w-24 md:w-40 lg:w-48 md:row-span-3 self-start"
                         />
-                        <p className="md:col-start-2 md:row-start-2 text-sm text-muted-foreground min-w-0">
-                          {buy.description}
-                        </p>
+                        <div className="min-w-0">
+                          <h3 className="text-lg font-bold mb-2 break-words">
+                            <span
+                              aria-hidden
+                              className="inline-block size-2 rounded-full bg-primary shadow-glow shadow-primary/50 animate-pulse mr-2 align-middle"
+                            />
+                            {buy.title}
+                          </h3>
+                          <p className="text-sm text-muted-foreground">{buy.description}</p>
+                        </div>
                         {buy.products && buy.products.length > 0 && (
                           <div
-                            className="col-span-2 md:col-span-1 md:col-start-2 md:row-start-3 flex flex-wrap gap-2"
+                            className="col-span-2 md:col-span-1 md:col-start-2 flex flex-wrap gap-2"
                             aria-label="Available products"
                           >
                             {buy.products.map((p) => {
@@ -190,7 +189,7 @@ export default function HomePage() {
                         )}
                         <Link
                           href={`/group-buy/${buy.id}`}
-                          className="col-span-2 md:col-span-1 md:col-start-2 md:row-start-4"
+                          className="col-span-2 md:col-span-1 md:col-start-2"
                         >
                           <Button size="sm" className="bg-yellow-600 hover:bg-yellow-700" disabled={!isAccountComplete}>
                             Participate
