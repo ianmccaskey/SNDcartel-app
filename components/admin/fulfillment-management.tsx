@@ -524,8 +524,8 @@ export function FulfillmentManagement() {
 
       {/* ── Orders Table ── */}
       <div className="bg-white/5 border border-white/10 rounded-lg overflow-hidden">
-        {/* Table Header */}
-        <div className="grid grid-cols-[2rem_1fr_1fr_5rem_5rem] gap-2 sm:grid-cols-[2rem_1fr_1fr_1fr_8rem_8rem] sm:gap-3 px-4 py-3 border-b border-white/10 text-xs text-white/40 font-medium uppercase tracking-wider">
+        {/* Table Header — hidden on phone since each row becomes a self-labeled card */}
+        <div className="hidden sm:grid sm:grid-cols-[2rem_1fr_1fr_1fr_8rem_8rem] sm:gap-3 px-4 py-3 border-b border-white/10 text-xs text-white/40 font-medium uppercase tracking-wider">
           <div className="flex items-center">
             <Checkbox
               checked={filteredOrders.length > 0 && selectedOrderIds.size === filteredOrders.length}
@@ -561,7 +561,7 @@ export function FulfillmentManagement() {
               return (
                 <div
                   key={order.id}
-                  className={`grid grid-cols-[2rem_1fr_1fr_5rem_5rem] gap-2 sm:grid-cols-[2rem_1fr_1fr_1fr_8rem_8rem] sm:gap-3 px-4 py-4 items-start transition-colors ${
+                  className={`flex flex-col gap-3 sm:grid sm:grid-cols-[2rem_1fr_1fr_1fr_8rem_8rem] sm:gap-3 px-4 py-4 sm:items-start transition-colors ${
                     isSelected ? 'bg-cyan-500/5' : 'hover:bg-white/5'
                   }`}
                 >
@@ -667,7 +667,7 @@ export function FulfillmentManagement() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-wrap gap-2 sm:flex-col sm:gap-1.5">
                     {!isShipped && (
                       <Button
                         size="sm"
