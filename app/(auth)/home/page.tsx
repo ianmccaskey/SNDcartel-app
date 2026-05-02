@@ -132,24 +132,25 @@ export default function HomePage() {
               ) : (
                 groupBuys.map((buy) => {
                   return (
-                    <div key={buy.id} className="border rounded-lg p-4">
+                    <div key={buy.id} className="border rounded-lg p-4 relative">
+                      {buy.endDate && (
+                        <Badge
+                          variant="outline"
+                          className="absolute -top-2.5 right-4 z-10 bg-background whitespace-nowrap"
+                        >
+                          Ends {new Date(buy.endDate).toLocaleDateString()}
+                        </Badge>
+                      )}
                       <div className="md:grid md:grid-cols-[1fr_10rem] md:gap-4 lg:grid-cols-[1fr_12rem]">
                         {/* Left column on md+, full width on phone */}
                         <div>
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <h3 className="text-lg font-bold flex flex-1 min-w-0 gap-2 items-baseline">
-                              <span
-                                aria-hidden
-                                className="inline-block size-2 rounded-full bg-primary shadow-glow shadow-primary/50 animate-pulse shrink-0 self-center"
-                              />
-                              <span className="break-words">{buy.title}</span>
-                            </h3>
-                            {buy.endDate && (
-                              <Badge variant="outline" className="shrink-0">
-                                Ends {new Date(buy.endDate).toLocaleDateString()}
-                              </Badge>
-                            )}
-                          </div>
+                          <h3 className="text-lg font-bold flex gap-2 items-baseline mb-2 pr-32 md:pr-0">
+                            <span
+                              aria-hidden
+                              className="inline-block size-2 rounded-full bg-primary shadow-glow shadow-primary/50 animate-pulse shrink-0 self-center"
+                            />
+                            <span className="break-words">{buy.title}</span>
+                          </h3>
                           <p className="text-sm text-muted-foreground mb-3">{buy.description}</p>
                           {/* Pills + (mobile-only) image. At md+, image moves to the right column. */}
                           <div className="flex gap-3 mb-3 md:block">
