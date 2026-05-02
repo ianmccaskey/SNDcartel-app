@@ -117,6 +117,31 @@ export default function GroupBuyPage() {
   // position:fixed — portal-to-body sidesteps that containing block).
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
+  // Sticky flag: true once the cart card has scrolled into view at least
+  // once. Used to hide the floating Proceed-to-Checkout bar — its only job
+  // is to anchor-scroll users to the cart, so it has no purpose once they
+  // can see the cart themselves.
+  const [cartSeen, setCartSeen] = useState(false)
+
+  // Observe the cart card; once any 20% of it scrolls into view, mark
+  // cartSeen permanently. Re-attaches when `groupBuy` becomes non-null
+  // (the cart only renders after the data arrives).
+  useEffect(() => {
+    if (!groupBuy) return
+    const cartEl = document.getElementById("cart")
+    if (!cartEl) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setCartSeen(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.2 },
+    )
+    observer.observe(cartEl)
+    return () => observer.disconnect()
+  }, [groupBuy])
 
   useEffect(() => {
     if (!id) return
@@ -230,11 +255,15 @@ export default function GroupBuyPage() {
           Slides down from under the header when the cart has items
           and anchor-scrolls to #cart at the bottom of the page.
           Portaled to document.body to escape an ancestor's transform
-          containing block (which would break fixed positioning). */}
+          containing block (which would break fixed positioning).
+          Hidden once the user has seen their cart in the viewport
+          (cartSeen) or the checkout overlay is open — its only job is
+          to direct attention to the cart, which is no longer needed
+          in either of those states. */}
       {mounted &&
         createPortal(
           <AnimatePresence>
-            {cartItemCount > 0 && (
+            {cartItemCount > 0 && !cartSeen && !isCheckoutOpen && (
               <motion.button
                 type="button"
                 key="mobile-checkout-bar"
