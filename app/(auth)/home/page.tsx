@@ -6,66 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { AccountWarningBanner } from "@/components/account-warning-banner"
 import { pickProductIcon } from "@/lib/product-icons"
-import { cn } from "@/lib/utils"
-import { Package } from "lucide-react"
+import { GroupBuyImageBox } from "@/components/group-buy-image-box"
 import Link from "next/link"
-
-// Default placeholder served from /public when a group buy has no imageUrl.
-const DEFAULT_GROUP_BUY_IMAGE = "/SNDvial.mp4"
-
-// Detect video sources so we can render <video> instead of <img>. Matches the
-// extension at the end of the path (allowing for query strings).
-function isVideoSrc(src: string): boolean {
-  return /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i.test(src)
-}
-
-function GroupBuyImageBox({
-  imageUrl,
-  title,
-  className,
-}: {
-  imageUrl: string | null
-  title: string
-  className?: string
-}) {
-  const [mediaFailed, setMediaFailed] = useState(false)
-  const src = imageUrl || DEFAULT_GROUP_BUY_IMAGE
-  const isVideo = isVideoSrc(src)
-
-  return (
-    <div
-      className={cn(
-        "aspect-square rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm overflow-hidden",
-        className,
-      )}
-    >
-      {mediaFailed ? (
-        <div className="w-full h-full flex items-center justify-center">
-          <Package className="size-8 text-white/30" />
-        </div>
-      ) : isVideo ? (
-        <video
-          src={src}
-          autoPlay
-          loop
-          muted
-          playsInline
-          preload="metadata"
-          aria-label={title}
-          className="w-full h-full object-cover"
-          onError={() => setMediaFailed(true)}
-        />
-      ) : (
-        <img
-          src={src}
-          alt={title}
-          className="w-full h-full object-cover"
-          onError={() => setMediaFailed(true)}
-        />
-      )}
-    </div>
-  )
-}
 
 interface ActiveGroupBuyProduct {
   id: string

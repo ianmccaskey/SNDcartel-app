@@ -47,7 +47,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       id: gb.id,
       title: gb.name,
       description: gb.description ?? '',
-      image: gb.imageUrl ?? '/placeholder.svg',
+      image: gb.imageUrl ?? null,
       status: uiStatus,
       endDate: gb.endDate ? gb.endDate.toISOString() : '',
       paymentInfo,

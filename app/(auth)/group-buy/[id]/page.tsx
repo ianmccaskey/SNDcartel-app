@@ -10,6 +10,7 @@ import { ArrowLeft, ShoppingCart, Plus, Minus, Clock, Target, AlertCircle, Check
 import { motion, AnimatePresence } from "framer-motion"
 import Link from "next/link"
 import { CheckoutOverlay } from "@/components/checkout-overlay"
+import { GroupBuyImageBox } from "@/components/group-buy-image-box"
 
 interface GroupBuyProduct {
   id: string
@@ -34,7 +35,7 @@ interface GroupBuyDetails {
   id: string
   title: string
   description: string
-  image: string
+  image: string | null
   status: "active" | "ended" | "upcoming"
   endDate: string
   paymentInfo: string
@@ -274,13 +275,11 @@ export default function GroupBuyPage() {
                   <CardContent className="p-6">
                     <div className="flex flex-col md:flex-row gap-6">
                       <div className="flex-shrink-0">
-                        <div className="w-full md:w-48 h-48 rounded-lg overflow-hidden bg-black/30 border border-white/10">
-                          <img
-                            src={groupBuy.image || "/placeholder.svg"}
-                            alt={groupBuy.title}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
+                        <GroupBuyImageBox
+                          imageUrl={groupBuy.image || null}
+                          title={groupBuy.title}
+                          className="w-full h-48 md:w-48 aspect-auto"
+                        />
                       </div>
                       <div className="flex-1">
                         <h1 className="text-2xl font-bold mb-2">{groupBuy.title}</h1>
