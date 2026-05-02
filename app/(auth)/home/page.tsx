@@ -141,60 +141,61 @@ export default function HomePage() {
                           Ends {new Date(buy.endDate).toLocaleDateString()}
                         </Badge>
                       )}
-                      <div className="md:grid md:grid-cols-[1fr_10rem] md:gap-4 lg:grid-cols-[1fr_12rem]">
-                        {/* Left column on md+, full width on phone */}
-                        <div>
-                          <h3 className="text-lg font-bold flex gap-2 items-baseline mb-2 pr-32 md:pr-0">
-                            <span
-                              aria-hidden
-                              className="inline-block size-2 rounded-full bg-primary shadow-glow shadow-primary/50 animate-pulse shrink-0 self-center"
-                            />
-                            <span className="break-words">{buy.title}</span>
-                          </h3>
-                          <p className="text-sm text-muted-foreground mb-3">{buy.description}</p>
-                          {/* Pills + (mobile-only) image. At md+, image moves to the right column. */}
-                          <div className="flex gap-3 mb-3 md:block">
-                            {buy.products && buy.products.length > 0 && (
-                              <div
-                                className="flex-1 flex flex-wrap gap-2 content-start"
-                                aria-label="Available products"
-                              >
-                                {buy.products.map((p) => {
-                                  const Icon = pickProductIcon(p.name)
-                                  return (
-                                    <Link key={p.id} href={`/group-buy/${buy.id}`} title={p.name}>
-                                      <Button
-                                        variant="secondary"
-                                        size="sm"
-                                        aria-label={p.name}
-                                        className="h-8 px-3 text-xs sm:h-9 sm:px-4 sm:text-sm"
-                                      >
-                                        <Icon className="size-3.5 sm:size-4" />
-                                        <span>{p.name}</span>
-                                      </Button>
-                                    </Link>
-                                  )
-                                })}
-                              </div>
-                            )}
-                            <GroupBuyImageBox
-                              imageUrl={buy.imageUrl}
-                              title={buy.title}
-                              className="md:hidden shrink-0 w-24 self-start"
-                            />
-                          </div>
-                          <Link href={`/group-buy/${buy.id}`}>
-                            <Button size="sm" className="bg-yellow-600 hover:bg-yellow-700" disabled={!isAccountComplete}>
-                              Participate
-                            </Button>
-                          </Link>
-                        </div>
-                        {/* Right column on md+: image fills the full square slot */}
+                      {/*
+                        2-column grid. Image is in col 1, spanning row 1 only
+                        on phone (so pills/button fall full-width below it)
+                        and spanning all 3 rows on md+ (so it becomes the
+                        primary left visual). Title/description live in col 2
+                        row 1; pills and the participate button shift between
+                        col-span-2 (mobile) and col-start-2 (md+).
+                      */}
+                      <div className="grid grid-cols-[auto_1fr] gap-x-3 md:gap-x-4 gap-y-3 items-start">
                         <GroupBuyImageBox
                           imageUrl={buy.imageUrl}
                           title={buy.title}
-                          className="hidden md:block w-full self-start"
+                          className="w-20 sm:w-24 md:w-40 lg:w-48 row-span-1 md:row-span-3 self-start"
                         />
+                        <div className="min-w-0">
+                          <h3 className="text-lg font-bold mb-2 pr-32 break-words">
+                            <span
+                              aria-hidden
+                              className="inline-block size-2 rounded-full bg-primary shadow-glow shadow-primary/50 animate-pulse mr-2 align-middle"
+                            />
+                            {buy.title}
+                          </h3>
+                          <p className="text-sm text-muted-foreground">{buy.description}</p>
+                        </div>
+                        {buy.products && buy.products.length > 0 && (
+                          <div
+                            className="col-span-2 md:col-span-1 md:col-start-2 flex flex-wrap gap-2"
+                            aria-label="Available products"
+                          >
+                            {buy.products.map((p) => {
+                              const Icon = pickProductIcon(p.name)
+                              return (
+                                <Link key={p.id} href={`/group-buy/${buy.id}`} title={p.name}>
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    aria-label={p.name}
+                                    className="h-8 px-3 text-xs sm:h-9 sm:px-4 sm:text-sm"
+                                  >
+                                    <Icon className="size-3.5 sm:size-4" />
+                                    <span>{p.name}</span>
+                                  </Button>
+                                </Link>
+                              )
+                            })}
+                          </div>
+                        )}
+                        <Link
+                          href={`/group-buy/${buy.id}`}
+                          className="col-span-2 md:col-span-1 md:col-start-2"
+                        >
+                          <Button size="sm" className="bg-yellow-600 hover:bg-yellow-700" disabled={!isAccountComplete}>
+                            Participate
+                          </Button>
+                        </Link>
                       </div>
                     </div>
                   )
