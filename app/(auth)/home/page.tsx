@@ -13,6 +13,12 @@ import Link from "next/link"
 // Default placeholder served from /public when a group buy has no imageUrl.
 const DEFAULT_GROUP_BUY_IMAGE = "/40a7640a0_SND_GB2.gif"
 
+// Detect video sources so we can render <video> instead of <img>. Matches the
+// extension at the end of the path (allowing for query strings).
+function isVideoSrc(src: string): boolean {
+  return /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i.test(src)
+}
+
 function GroupBuyImageBox({
   imageUrl,
   title,
@@ -22,8 +28,9 @@ function GroupBuyImageBox({
   title: string
   className?: string
 }) {
-  const [imgFailed, setImgFailed] = useState(false)
+  const [mediaFailed, setMediaFailed] = useState(false)
   const src = imageUrl || DEFAULT_GROUP_BUY_IMAGE
+  const isVideo = isVideoSrc(src)
 
   return (
     <div
@@ -32,16 +39,28 @@ function GroupBuyImageBox({
         className,
       )}
     >
-      {imgFailed ? (
+      {mediaFailed ? (
         <div className="w-full h-full flex items-center justify-center">
           <Package className="size-8 text-white/30" />
         </div>
+      ) : isVideo ? (
+        <video
+          src={src}
+          autoPlay
+          loop
+          muted
+          playsInline
+          preload="metadata"
+          aria-label={title}
+          className="w-full h-full object-cover"
+          onError={() => setMediaFailed(true)}
+        />
       ) : (
         <img
           src={src}
           alt={title}
           className="w-full h-full object-cover"
-          onError={() => setImgFailed(true)}
+          onError={() => setMediaFailed(true)}
         />
       )}
     </div>
