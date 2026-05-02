@@ -1,12 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { createPortal } from "react-dom"
 import { useParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { ArrowLeft, ShoppingCart, Plus, Minus, Clock, Target, AlertCircle, CheckCircle2 } from "lucide-react"
+import { ArrowLeft, ShoppingCart, Plus, Minus, Clock, Target, AlertCircle, CheckCircle2, ChevronDown } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import Link from "next/link"
 import { CheckoutOverlay } from "@/components/checkout-overlay"
@@ -111,6 +112,11 @@ export default function GroupBuyPage() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
+  // Track client-mount so the portal is only rendered after hydration
+  // (an ancestor uses transform for route transitions, which breaks
+  // position:fixed — portal-to-body sidesteps that containing block).
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
   useEffect(() => {
     if (!id) return
@@ -206,6 +212,43 @@ export default function GroupBuyPage() {
           acceptedPayments={groupBuy.acceptedPayments ?? []}
         />
       )}
+
+      {/* Mobile-only floating Proceed-to-Checkout bar.
+          Slides down from under the header when the cart has items
+          and anchor-scrolls to #cart at the bottom of the page.
+          Portaled to document.body to escape an ancestor's transform
+          containing block (which would break fixed positioning). */}
+      {mounted &&
+        createPortal(
+          <AnimatePresence>
+            {cartItemCount > 0 && (
+              <motion.button
+                type="button"
+                key="mobile-checkout-bar"
+                onClick={() => {
+                  document.getElementById("cart")?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }}
+                initial={{ y: -80, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: -80, opacity: 0 }}
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                className="md:hidden fixed top-24 inset-x-4 z-40 px-4 py-3 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg shadow-lg backdrop-blur-md border border-yellow-500/50 flex items-center justify-between gap-3"
+                aria-label={`Proceed to checkout, ${cartItemCount} item${cartItemCount === 1 ? "" : "s"}, $${cartTotal.toFixed(2)}`}
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <ShoppingCart className="h-4 w-4 shrink-0" />
+                  <span className="font-semibold truncate">Proceed to Checkout</span>
+                </span>
+                <span className="flex items-center gap-2 shrink-0">
+                  <span className="text-sm font-bold">${cartTotal.toFixed(2)}</span>
+                  <Badge className="bg-black/40 text-yellow-100 border-0">{cartItemCount}</Badge>
+                  <ChevronDown className="h-4 w-4" />
+                </span>
+              </motion.button>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
 
       <div
         className="container mx-auto px-4 py-8 max-w-6xl relative z-10"
@@ -440,7 +483,7 @@ export default function GroupBuyPage() {
               </div>
 
               {/* Cart Sidebar */}
-              <div className="lg:col-span-1">
+              <div id="cart" className="lg:col-span-1 scroll-mt-24">
                 <div className="sticky top-32">
                   <Card className="bg-background/60 backdrop-blur-md border-white/10">
                     <CardHeader>
