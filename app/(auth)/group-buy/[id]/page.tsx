@@ -117,25 +117,22 @@ export default function GroupBuyPage() {
   // position:fixed — portal-to-body sidesteps that containing block).
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
-  // Sticky flag: true once the cart card has scrolled into view at least
-  // once. Used to hide the floating Proceed-to-Checkout bar — its only job
-  // is to anchor-scroll users to the cart, so it has no purpose once they
-  // can see the cart themselves.
-  const [cartSeen, setCartSeen] = useState(false)
+  // Live flag: true while the cart card is at least 20% in the viewport.
+  // The floating Proceed-to-Checkout bar's only job is to direct the user
+  // to the cart — show it when the cart isn't visible, hide it when it is.
+  const [cartInView, setCartInView] = useState(false)
 
-  // Observe the cart card; once any 20% of it scrolls into view, mark
-  // cartSeen permanently. Re-attaches when `groupBuy` becomes non-null
-  // (the cart only renders after the data arrives).
+  // Observe the cart card and live-track whether it's in view. Re-attaches
+  // when `groupBuy` becomes non-null (the cart only renders after the data
+  // arrives). Updates on both enter and exit so the floating bar can
+  // reappear if the user scrolls back up away from the cart.
   useEffect(() => {
     if (!groupBuy) return
     const cartEl = document.getElementById("cart")
     if (!cartEl) return
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
-          setCartSeen(true)
-          observer.disconnect()
-        }
+        setCartInView(entry.isIntersecting)
       },
       { threshold: 0.2 },
     )
@@ -256,14 +253,14 @@ export default function GroupBuyPage() {
           and anchor-scrolls to #cart at the bottom of the page.
           Portaled to document.body to escape an ancestor's transform
           containing block (which would break fixed positioning).
-          Hidden once the user has seen their cart in the viewport
-          (cartSeen) or the checkout overlay is open — its only job is
-          to direct attention to the cart, which is no longer needed
-          in either of those states. */}
+          Visible whenever items are in the cart, the cart card is NOT
+          in view (cartInView is false), and the checkout overlay is
+          closed. Slides back up when the user scrolls down to the
+          cart and slides back down if they scroll away. */}
       {mounted &&
         createPortal(
           <AnimatePresence>
-            {cartItemCount > 0 && !cartSeen && !isCheckoutOpen && (
+            {cartItemCount > 0 && !cartInView && !isCheckoutOpen && (
               <motion.button
                 type="button"
                 key="mobile-checkout-bar"
