@@ -131,7 +131,7 @@ export function OrdersCard({ orders }: OrdersCardProps) {
                 <div
                   key={order.id}
                   onClick={() => setSelectedOrder(order)}
-                  className="border border-white/10 rounded-lg p-4 bg-black/20 hover:bg-black/30 transition-colors cursor-pointer"
+                  className="border border-white/10 rounded-lg p-4 bg-black/50 hover:bg-black/60 backdrop-blur-sm transition-colors cursor-pointer"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div>
@@ -158,7 +158,7 @@ export function OrdersCard({ orders }: OrdersCardProps) {
                         <Badge
                           key={item.id}
                           variant="outline"
-                          className="text-xs bg-white/5 border-white/10"
+                          className="text-xs bg-white/10 border-white/20 text-white/90"
                         >
                           {item.productNameSnapshot} x{item.quantity}
                         </Badge>

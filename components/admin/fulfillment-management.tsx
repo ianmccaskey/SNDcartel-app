@@ -523,7 +523,7 @@ export function FulfillmentManagement() {
       )}
 
       {/* ── Orders Table ── */}
-      <div className="bg-white/5 border border-white/10 rounded-lg overflow-hidden">
+      <div className="bg-black/40 backdrop-blur-md border border-white/10 rounded-lg overflow-hidden">
         {/* Table Header — hidden on phone since each row becomes a self-labeled card */}
         <div className="hidden sm:grid sm:grid-cols-[2rem_1fr_1fr_1fr_8rem_8rem] sm:gap-3 px-4 py-3 border-b border-white/10 text-xs text-white/40 font-medium uppercase tracking-wider">
           <div className="flex items-center">
@@ -562,7 +562,7 @@ export function FulfillmentManagement() {
                 <div
                   key={order.id}
                   className={`flex flex-col gap-3 sm:grid sm:grid-cols-[2rem_1fr_1fr_1fr_8rem_8rem] sm:gap-3 px-4 py-4 sm:items-start transition-colors ${
-                    isSelected ? 'bg-cyan-500/5' : 'hover:bg-white/5'
+                    isSelected ? 'bg-cyan-500/10' : 'hover:bg-white/[0.03]'
                   }`}
                 >
                   {/* Checkbox */}
@@ -580,12 +580,12 @@ export function FulfillmentManagement() {
                       {order.userFullName ?? order.userEmail ?? 'Unknown'}
                     </p>
                     {order.userFullName && (
-                      <p className="text-xs text-white/40 truncate">{order.userEmail}</p>
+                      <p className="text-xs text-white/60 truncate">{order.userEmail}</p>
                     )}
                     <p className="text-xs text-cyan-400 font-semibold mt-0.5">${order.totalUsd.toFixed(2)}</p>
-                    <p className="text-xs text-white/30">{new Date(order.createdAt).toLocaleDateString()}</p>
+                    <p className="text-xs text-white/50">{new Date(order.createdAt).toLocaleDateString()}</p>
                     {order.groupBuyName && (
-                      <p className="text-xs text-white/40 mt-0.5 truncate">{order.groupBuyName}</p>
+                      <p className="text-xs text-white/60 mt-0.5 truncate">{order.groupBuyName}</p>
                     )}
                   </div>
 
@@ -599,7 +599,7 @@ export function FulfillmentManagement() {
                         >
                           {formatStatus(item.fulfillmentStatus)}
                         </Badge>
-                        <span className="text-xs text-white/70 truncate">
+                        <span className="text-xs text-white/85 truncate">
                           {item.productNameSnapshot} ×{item.quantity}
                         </span>
                       </div>
