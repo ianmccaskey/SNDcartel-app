@@ -99,10 +99,10 @@ export function UserbaseManagement() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name / Email</TableHead>
-                  <TableHead>Discord</TableHead>
+                  <TableHead className="hidden sm:table-cell">Discord</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Orders</TableHead>
-                  <TableHead>Joined</TableHead>
+                  <TableHead className="hidden sm:table-cell">Joined</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -116,7 +116,7 @@ export function UserbaseManagement() {
                       <p className="font-medium text-white">{user.fullName ?? "—"}</p>
                       <p className="text-xs text-muted-foreground">{user.email}</p>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground hidden sm:table-cell">
                       {user.discordName ?? "—"}
                     </TableCell>
                     <TableCell>
@@ -135,7 +135,7 @@ export function UserbaseManagement() {
                     <TableCell>
                       <Badge variant="secondary">{user.orderCount}</Badge>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell className="text-xs text-muted-foreground hidden sm:table-cell">
                       {new Date(user.createdAt).toLocaleDateString()}
                     </TableCell>
                   </TableRow>

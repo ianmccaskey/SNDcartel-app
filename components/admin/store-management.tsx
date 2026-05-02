@@ -207,8 +207,8 @@ export function StoreManagement() {
                 <TableRow>
                   <TableHead>Image</TableHead>
                   <TableHead>Name</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Category</TableHead>
+                  <TableHead className="hidden sm:table-cell">Description</TableHead>
+                  <TableHead className="hidden sm:table-cell">Category</TableHead>
                   <TableHead>Price</TableHead>
                   <TableHead>Available</TableHead>
                   <TableHead></TableHead>
@@ -242,14 +242,14 @@ export function StoreManagement() {
                             className="bg-background/40"
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden sm:table-cell">
                           <Input
                             value={editForm.description || ""}
                             onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                             className="bg-background/40"
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden sm:table-cell">
                           <Input
                             value={editForm.category || ""}
                             onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
@@ -297,8 +297,8 @@ export function StoreManagement() {
                           )}
                         </TableCell>
                         <TableCell className="font-medium">{product.name}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{product.description}</TableCell>
-                        <TableCell className="text-sm">{product.category}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground hidden sm:table-cell">{product.description}</TableCell>
+                        <TableCell className="text-sm hidden sm:table-cell">{product.category}</TableCell>
                         <TableCell className="font-medium">${product.price.toFixed(2)}</TableCell>
                         <TableCell>
                           <Switch checked={product.available} onCheckedChange={() => toggleAvailability(product.id)} />

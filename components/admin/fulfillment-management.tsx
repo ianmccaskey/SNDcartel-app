@@ -525,7 +525,7 @@ export function FulfillmentManagement() {
       {/* ── Orders Table ── */}
       <div className="bg-white/5 border border-white/10 rounded-lg overflow-hidden">
         {/* Table Header */}
-        <div className="grid grid-cols-[2rem_1fr_1fr_1fr_8rem_8rem] gap-3 px-4 py-3 border-b border-white/10 text-xs text-white/40 font-medium uppercase tracking-wider">
+        <div className="grid grid-cols-[2rem_1fr_1fr_5rem_5rem] gap-2 sm:grid-cols-[2rem_1fr_1fr_1fr_8rem_8rem] sm:gap-3 px-4 py-3 border-b border-white/10 text-xs text-white/40 font-medium uppercase tracking-wider">
           <div className="flex items-center">
             <Checkbox
               checked={filteredOrders.length > 0 && selectedOrderIds.size === filteredOrders.length}
@@ -535,7 +535,7 @@ export function FulfillmentManagement() {
           </div>
           <div>Customer</div>
           <div>Items</div>
-          <div>Shipments</div>
+          <div className="hidden sm:block">Shipments</div>
           <div>Fulfillment</div>
           <div>Actions</div>
         </div>
@@ -561,7 +561,7 @@ export function FulfillmentManagement() {
               return (
                 <div
                   key={order.id}
-                  className={`grid grid-cols-[2rem_1fr_1fr_1fr_8rem_8rem] gap-3 px-4 py-4 items-start transition-colors ${
+                  className={`grid grid-cols-[2rem_1fr_1fr_5rem_5rem] gap-2 sm:grid-cols-[2rem_1fr_1fr_1fr_8rem_8rem] sm:gap-3 px-4 py-4 items-start transition-colors ${
                     isSelected ? 'bg-cyan-500/5' : 'hover:bg-white/5'
                   }`}
                 >
@@ -607,7 +607,7 @@ export function FulfillmentManagement() {
                   </div>
 
                   {/* Shipments */}
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 hidden sm:block">
                     {orderShipments.length === 0 ? (
                       <p className="text-xs text-white/30">None</p>
                     ) : (

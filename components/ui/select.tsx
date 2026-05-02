@@ -7,15 +7,82 @@ import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-// Prevent react-remove-scroll from shifting the page layout
+// Prevent react-remove-scroll from shifting the page layout when a Select opens.
+// react-remove-scroll sets various inline styles on body (and on some platforms
+// on html) to compensate for scrollbar / lock background scroll. Since html
+// already has scrollbar-gutter:stable in globals.css, none of that compensation
+// is needed — we strip every property react-remove-scroll might touch on both
+// html and body whenever they're modified.
+const SCROLL_LOCK_PROPS = [
+  "overflow",
+  "overflow-x",
+  "overflow-y",
+  "padding",
+  "padding-right",
+  "padding-left",
+  "padding-top",
+  "padding-bottom",
+  "margin",
+  "margin-right",
+  "margin-left",
+  "margin-top",
+  "margin-bottom",
+  "position",
+  "top",
+  "left",
+  "right",
+  "bottom",
+  "width",
+  "height",
+] as const
+
+function stripScrollLockStyles(el: HTMLElement) {
+  for (const prop of SCROLL_LOCK_PROPS) {
+    el.style.removeProperty(prop)
+  }
+}
+
+// Classes injected by react-remove-scroll / Radix that carry !important rules
+// for padding/margin/width (causes horizontal layout shift).
+const REMOVE_SCROLL_CLASS_PATTERNS = [
+  /^removed-body-scroll/,
+  /^react-remove-scroll-bar/,
+  /^scroll-lock/,
+]
+
+function stripScrollLockClasses(el: HTMLElement) {
+  if (!el.className || typeof el.className !== "string") return
+  const filtered = el.className
+    .split(/\s+/)
+    .filter((c) => c && !REMOVE_SCROLL_CLASS_PATTERNS.some((re) => re.test(c)))
+    .join(" ")
+  if (filtered !== el.className) el.className = filtered
+}
+
+function cleanseScrollLock(el: HTMLElement) {
+  stripScrollLockStyles(el)
+  stripScrollLockClasses(el)
+}
+
 function usePreventScrollShift() {
   useEffect(() => {
+    // Strip immediately in case styles/classes were already applied before
+    // the observer attached (Radix sets them synchronously on open).
+    cleanseScrollLock(document.body)
+    cleanseScrollLock(document.documentElement)
+
     const observer = new MutationObserver(() => {
-      document.body.style.removeProperty("overflow")
-      document.body.style.removeProperty("padding-right")
-      document.body.style.removeProperty("margin-right")
+      cleanseScrollLock(document.body)
+      cleanseScrollLock(document.documentElement)
     })
-    observer.observe(document.body, { attributes: true, attributeFilter: ["style"] })
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["style", "class"],
+    })
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["style", "class"],
+    })
     return () => observer.disconnect()
   }, [])
 }

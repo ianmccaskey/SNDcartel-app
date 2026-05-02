@@ -1,24 +1,42 @@
 @import "tailwindcss";
 
-html {
+/* Always-on scroll-lock guard.
+   html has scrollbar-gutter:stable so the scrollbar gutter is reserved
+   permanently — Radix / react-remove-scroll's compensating padding/margin and
+   position-lock are unnecessary and cause horizontal/vertical layout shift on
+   dropdown open. We aggressively override ANY inline padding/margin/position
+   that the lib tries to set on html or body. */
+html,
+html[style] {
   overflow-y: scroll !important;
   scrollbar-gutter: stable;
+  margin-right: 0 !important;
+  padding-right: 0 !important;
+  margin-left: 0 !important;
+  padding-left: 0 !important;
 }
 
-/* Prevent react-remove-scroll and Radix from hiding scrollbar on dropdown/dialog open */
 body,
+body[style],
 body[data-scroll-locked],
+html body,
+html body[data-scroll-locked],
 [data-radix-scroll-area-viewport] {
   overflow: visible !important;
-  margin-right: 0px !important;
-  padding-right: 0px !important;
+  margin-right: 0 !important;
+  padding-right: 0 !important;
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  width: 100% !important;
 }
 
-/* Override react-remove-scroll inline styles */
+/* Re-assert overflow when Radix sets inline overflow */
 body[style*="overflow"] {
   overflow-y: scroll !important;
-  margin-right: 0px !important;
-  padding-right: 0px !important;
 }
 
 @font-face {

@@ -206,9 +206,9 @@ export function PaymentVerification() {
     <div className="space-y-6">
       <Card className="bg-background/60 backdrop-blur-md border-white/10">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle>Payment Verification</CardTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <div className="flex rounded-md border border-white/10 overflow-hidden">
                 {(["pending", "approved", "rejected", "all"] as FilterStatus[]).map((f) => (
                   <button

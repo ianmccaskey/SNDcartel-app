@@ -23,7 +23,7 @@ export default function AdminPage() {
         </div>
 
         <Tabs defaultValue="analytics" className="w-full">
-          <TabsList className="bg-background/60 backdrop-blur-md border border-white/10 mb-6">
+          <TabsList className="bg-background/60 backdrop-blur-md border border-white/10 mb-6 grid grid-cols-3 sm:grid-cols-6 h-auto w-full gap-1 sm:gap-4">
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
             <TabsTrigger value="store">Store</TabsTrigger>
