@@ -192,12 +192,12 @@ export default function GroupBuyPage() {
   const cartTotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0)
 
-  // On mobile, scroll the page back to the top before opening the checkout
-  // overlay so the user perceives the panel sliding up to where the
-  // payment options + wallet inputs are. On desktop the overlay centers
-  // itself so the scroll is a no-op.
+  // Smooth-scroll to the top of the page before opening the checkout
+  // overlay so the panel slides into view near the top where the payment
+  // options + wallet inputs are. Mobile and desktop share the same
+  // behaviour so the experience is consistent.
   const handleProceedToCheckout = () => {
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
+    if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" })
       setTimeout(() => setIsCheckoutOpen(true), 400)
     } else {

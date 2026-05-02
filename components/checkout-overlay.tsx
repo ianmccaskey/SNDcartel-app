@@ -209,7 +209,7 @@ export function CheckoutOverlay({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed inset-4 md:inset-auto md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-md z-[201] overflow-auto"
+            className="fixed inset-4 md:inset-auto md:top-32 md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-md z-[201] overflow-auto max-h-[calc(100vh-2rem)] md:max-h-[calc(100vh-9rem)]"
           >
             <div className="bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
               {/* Header */}
