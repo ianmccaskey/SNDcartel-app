@@ -102,9 +102,6 @@ export default function HomePage() {
                 <p className="text-sm text-muted-foreground">No active group buys at this time.</p>
               ) : (
                 groupBuys.map((buy) => {
-                  const progressPct = buy.totalMoqGoal > 0
-                    ? Math.min(100, Math.round((buy.totalKitsOrdered / buy.totalMoqGoal) * 100))
-                    : 0
                   return (
                     <div key={buy.id} className="border rounded-lg p-4">
                       <div className="flex items-start justify-between mb-2">
@@ -115,18 +112,16 @@ export default function HomePage() {
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground mb-2">{buy.description}</p>
-                      <p className="text-xs text-muted-foreground mb-3">
-                        {buy.totalKitsOrdered} / {buy.totalMoqGoal} kits ({progressPct}%)
-                      </p>
+                      <p className="text-sm text-muted-foreground mb-3">{buy.description}</p>
                       {buy.products && buy.products.length > 0 && (
                         <div className="flex flex-wrap gap-2 mb-3" aria-label="Available products">
                           {buy.products.map((p) => {
                             const Icon = pickProductIcon(p.name)
                             return (
                               <Link key={p.id} href={`/group-buy/${buy.id}`} title={p.name}>
-                                <Button variant="secondary" size="icon" aria-label={p.name}>
+                                <Button variant="secondary" size="sm" aria-label={p.name}>
                                   <Icon className="size-4" />
+                                  <span>{p.name}</span>
                                 </Button>
                               </Link>
                             )
