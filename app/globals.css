@@ -39,6 +39,17 @@ body[style*="overflow"] {
   overflow-y: scroll !important;
 }
 
+/* Page-wide horizontal-overflow guard. Clips at the html element so the
+   viewport never gains a horizontal scrollbar even if a deeply-nested
+   element accidentally exceeds the viewport width on narrow mobile
+   (e.g. Samsung S23+ at ~412 px). body still has overflow:visible from
+   the rule above — that's fine because html caps everything past the
+   viewport edge regardless. Y-axis scrolling is unaffected (html keeps
+   overflow-y:scroll). */
+html {
+  overflow-x: hidden !important;
+}
+
 @font-face {
   font-family: 'Sentient';
   src: url('/Sentient-Extralight.woff') format('woff');
