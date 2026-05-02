@@ -6,7 +6,36 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { AccountWarningBanner } from "@/components/account-warning-banner"
 import { pickProductIcon } from "@/lib/product-icons"
+import { cn } from "@/lib/utils"
+import { Package } from "lucide-react"
 import Link from "next/link"
+
+function GroupBuyImageBox({
+  imageUrl,
+  title,
+  className,
+}: {
+  imageUrl: string | null
+  title: string
+  className?: string
+}) {
+  return (
+    <div
+      className={cn(
+        "aspect-square rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm overflow-hidden",
+        className,
+      )}
+    >
+      {imageUrl ? (
+        <img src={imageUrl} alt={title} className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center">
+          <Package className="size-8 text-white/30" />
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface ActiveGroupBuyProduct {
   id: string
@@ -85,7 +114,7 @@ export default function HomePage() {
           </div>
         )}
 
-        <div className="grid gap-6 md:grid-cols-2 mb-8">
+        <div className="grid gap-6 mb-8">
           <Card className="bg-background/60 backdrop-blur-md border-white/10">
             <CardHeader>
               <CardTitle>Active Group Buys</CardTitle>
@@ -104,35 +133,62 @@ export default function HomePage() {
                 groupBuys.map((buy) => {
                   return (
                     <div key={buy.id} className="border rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <h3 className="font-medium">{buy.title}</h3>
-                        {buy.endDate && (
-                          <Badge variant="outline">
-                            Ends {new Date(buy.endDate).toLocaleDateString()}
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-3">{buy.description}</p>
-                      {buy.products && buy.products.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mb-3" aria-label="Available products">
-                          {buy.products.map((p) => {
-                            const Icon = pickProductIcon(p.name)
-                            return (
-                              <Link key={p.id} href={`/group-buy/${buy.id}`} title={p.name}>
-                                <Button variant="secondary" size="sm" aria-label={p.name}>
-                                  <Icon className="size-4" />
-                                  <span>{p.name}</span>
-                                </Button>
-                              </Link>
-                            )
-                          })}
+                      <div className="md:grid md:grid-cols-[1fr_10rem] md:gap-4 lg:grid-cols-[1fr_12rem]">
+                        {/* Left column on md+, full width on phone */}
+                        <div>
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <h3 className="font-medium">{buy.title}</h3>
+                            {buy.endDate && (
+                              <Badge variant="outline" className="shrink-0">
+                                Ends {new Date(buy.endDate).toLocaleDateString()}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground mb-3">{buy.description}</p>
+                          {/* Pills + (mobile-only) image. At md+, image moves to the right column. */}
+                          <div className="flex gap-3 mb-3 md:block">
+                            {buy.products && buy.products.length > 0 && (
+                              <div
+                                className="flex-1 flex flex-wrap gap-2 content-start"
+                                aria-label="Available products"
+                              >
+                                {buy.products.map((p) => {
+                                  const Icon = pickProductIcon(p.name)
+                                  return (
+                                    <Link key={p.id} href={`/group-buy/${buy.id}`} title={p.name}>
+                                      <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        aria-label={p.name}
+                                        className="h-8 px-3 text-xs sm:h-9 sm:px-4 sm:text-sm"
+                                      >
+                                        <Icon className="size-3.5 sm:size-4" />
+                                        <span>{p.name}</span>
+                                      </Button>
+                                    </Link>
+                                  )
+                                })}
+                              </div>
+                            )}
+                            <GroupBuyImageBox
+                              imageUrl={buy.imageUrl}
+                              title={buy.title}
+                              className="md:hidden shrink-0 w-24 self-start"
+                            />
+                          </div>
+                          <Link href={`/group-buy/${buy.id}`}>
+                            <Button size="sm" className="bg-yellow-600 hover:bg-yellow-700" disabled={!isAccountComplete}>
+                              Participate
+                            </Button>
+                          </Link>
                         </div>
-                      )}
-                      <Link href={`/group-buy/${buy.id}`}>
-                        <Button size="sm" className="bg-yellow-600 hover:bg-yellow-700" disabled={!isAccountComplete}>
-                          Participate
-                        </Button>
-                      </Link>
+                        {/* Right column on md+: image fills the full square slot */}
+                        <GroupBuyImageBox
+                          imageUrl={buy.imageUrl}
+                          title={buy.title}
+                          className="hidden md:block w-full self-start"
+                        />
+                      </div>
                     </div>
                   )
                 })
