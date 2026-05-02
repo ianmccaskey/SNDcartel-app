@@ -35,6 +35,12 @@ const categoryLabels: Record<string, string> = {
   equipment: "Equipment",
 }
 
+// Normalize a product name for case/whitespace-insensitive matching between
+// store products and group buy products.
+function normalizeProductName(name: string): string {
+  return name.trim().toLowerCase()
+}
+
 export default function StorePage() {
   const router = useRouter()
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
@@ -42,7 +48,10 @@ export default function StorePage() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [products, setProducts] = useState<StoreProduct[]>([])
   const [loading, setLoading] = useState(true)
-  const [firstGroupBuyId, setFirstGroupBuyId] = useState<string | null>(null)
+  // Map: normalized product name -> id of the active group buy that carries it.
+  // A "Join Group Buy" button is shown for a store product only if its name
+  // appears in this map.
+  const [productNameToGroupBuy, setProductNameToGroupBuy] = useState<Record<string, string>>({})
 
   useEffect(() => {
     async function fetchData() {
@@ -57,8 +66,17 @@ export default function StorePage() {
           setProducts(data)
         }
         if (groupBuysRes.ok) {
-          const gbs = await groupBuysRes.json()
-          if (gbs.length > 0) setFirstGroupBuyId(gbs[0].id)
+          const gbs: Array<{ id: string; products?: Array<{ id: string; name: string }> }> =
+            await groupBuysRes.json()
+          const map: Record<string, string> = {}
+          for (const gb of gbs) {
+            for (const p of gb.products ?? []) {
+              // First-seen wins; in practice a product is in one active GB
+              const key = normalizeProductName(p.name)
+              if (!(key in map)) map[key] = gb.id
+            }
+          }
+          setProductNameToGroupBuy(map)
         }
       } finally {
         setLoading(false)
@@ -85,11 +103,6 @@ export default function StorePage() {
     }
   }
 
-  const handleJoinGroupBuy = () => {
-    if (firstGroupBuyId) {
-      router.push(`/group-buy/${firstGroupBuyId}`)
-    }
-  }
 
   return (
     <div className="min-h-screen bg-transparent relative">
@@ -148,7 +161,10 @@ export default function StorePage() {
           <>
             <motion.div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3" layout>
               <AnimatePresence mode="popLayout">
-                {filteredProducts.map((product, index) => (
+                {filteredProducts.map((product, index) => {
+                  const activeGroupBuyId =
+                    productNameToGroupBuy[normalizeProductName(product.name)]
+                  return (
                   <motion.div
                     key={product.id}
                     layout
@@ -191,11 +207,11 @@ export default function StorePage() {
                       </CardContent>
                       <CardFooter>
                         <div className="flex flex-col gap-2 w-full">
-                          {firstGroupBuyId && (
+                          {activeGroupBuyId && (
                             <Button
                               className="w-full bg-yellow-600 hover:bg-yellow-700"
                               disabled={!product.available}
-                              onClick={handleJoinGroupBuy}
+                              onClick={() => router.push(`/group-buy/${activeGroupBuyId}`)}
                             >
                               Join Group Buy
                             </Button>
@@ -216,7 +232,8 @@ export default function StorePage() {
                       </CardFooter>
                     </Card>
                   </motion.div>
-                ))}
+                  )
+                })}
               </AnimatePresence>
             </motion.div>
 
