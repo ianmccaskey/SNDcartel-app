@@ -2,13 +2,9 @@ import { NextResponse } from 'next/server'
 import { eq, desc, inArray } from 'drizzle-orm'
 import { db } from '@/db'
 import { users, orders, orderItems, wallets, groupBuys } from '@/db/schema'
-import { auth } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth'
 import { logAdminAction } from '@/lib/audit'
 import { z } from 'zod'
-
-function requireAdmin(session: Awaited<ReturnType<typeof auth>>) {
-  return !!(session?.user?.id && session.user.role === 'admin')
-}
 
 const patchSchema = z.object({
   notes: z.string().optional(),
@@ -21,8 +17,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await auth()
-    if (!requireAdmin(session)) {
+    const session = await requireAdmin()
+    if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -179,8 +175,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await auth()
-    if (!requireAdmin(session)) {
+    const session = await requireAdmin()
+    if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

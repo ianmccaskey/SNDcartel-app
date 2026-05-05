@@ -7,14 +7,17 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus } from "lucide-react"
+import type { Wallet } from "@/lib/types"
+
+type WalletChain = Wallet["chain"]
 
 interface AddWalletDialogProps {
-  onAdd: (wallet: { chain: string; address: string }) => void
+  onAdd: (wallet: { chain: WalletChain; address: string }) => void
 }
 
 export function AddWalletDialog({ onAdd }: AddWalletDialogProps) {
   const [open, setOpen] = useState(false)
-  const [chain, setChain] = useState<string>("")
+  const [chain, setChain] = useState<WalletChain | "">("")
   const [address, setAddress] = useState("")
 
   const handleAdd = () => {
@@ -43,7 +46,7 @@ export function AddWalletDialog({ onAdd }: AddWalletDialogProps) {
             <Label htmlFor="chain" className="text-white">
               Blockchain
             </Label>
-            <Select value={chain} onValueChange={setChain}>
+            <Select value={chain} onValueChange={(v) => setChain(v as WalletChain)}>
               <SelectTrigger id="chain" className="text-white blockchain-select">
                 <SelectValue placeholder="Select blockchain" />
               </SelectTrigger>

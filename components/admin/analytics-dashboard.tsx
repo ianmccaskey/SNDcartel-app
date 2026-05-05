@@ -46,7 +46,7 @@ function StatCard({
 }: {
   title: string
   value: string | number
-  icon: React.ElementType
+  icon: React.ComponentType<{ className?: string }>
   subtitle?: string
   color?: string
 }) {

@@ -5,10 +5,8 @@ import { orders, alchemyWebhookEvents } from '@/db/schema'
 import { verifyAlchemySignature, USDC_CONTRACTS, usdcRawToUsd } from '@/lib/alchemy'
 import { matchPaymentToOrders, AUTO_APPROVE_THRESHOLD, type AlchemyTransfer } from '@/lib/payment-matcher'
 
-// Disable body parsing — we need raw body for HMAC verification
-export const config = {
-  api: { bodyParser: false },
-}
+// App Router automatically gives us the raw body via request.text(),
+// which is what we need for HMAC verification — no extra config required.
 
 export async function POST(request: Request) {
   try {

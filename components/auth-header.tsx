@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { Logo } from "./logo"
-import { motion, LayoutGroup, AnimatePresence } from "framer-motion"
+import { motion, LayoutGroup, AnimatePresence, type Variants } from "framer-motion"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Menu, X, LogOut } from "lucide-react"
@@ -60,13 +60,15 @@ export const AuthHeader = () => {
       : "block text-2xl font-medium transition-colors py-4 text-white hover:text-yellow-500"
   }
 
-  const menuContainerVariants = {
+  const easeOut: [number, number, number, number] = [0.22, 1, 0.36, 1]
+
+  const menuContainerVariants: Variants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
       transition: {
         duration: 0.4,
-        ease: [0.22, 1, 0.36, 1],
+        ease: easeOut,
         staggerChildren: 0.1,
         delayChildren: 0.2,
       },
@@ -75,14 +77,14 @@ export const AuthHeader = () => {
       opacity: 0,
       transition: {
         duration: 0.3,
-        ease: [0.22, 1, 0.36, 1],
+        ease: easeOut,
         staggerChildren: 0.05,
         staggerDirection: -1,
       },
     },
   }
 
-  const menuItemVariants = {
+  const menuItemVariants: Variants = {
     hidden: {
       opacity: 0,
       y: 40,
@@ -96,7 +98,7 @@ export const AuthHeader = () => {
       filter: "blur(0px)",
       transition: {
         duration: 0.5,
-        ease: [0.22, 1, 0.36, 1],
+        ease: easeOut,
       },
     },
     exit: {
@@ -106,7 +108,7 @@ export const AuthHeader = () => {
       filter: "blur(5px)",
       transition: {
         duration: 0.3,
-        ease: [0.22, 1, 0.36, 1],
+        ease: easeOut,
       },
     },
   }
@@ -122,7 +124,7 @@ export const AuthHeader = () => {
       backdropFilter: "blur(24px)",
       transition: {
         duration: 0.4,
-        ease: [0.22, 1, 0.36, 1],
+        ease: easeOut,
       },
     },
     exit: {
@@ -130,12 +132,12 @@ export const AuthHeader = () => {
       backdropFilter: "blur(0px)",
       transition: {
         duration: 0.3,
-        ease: [0.22, 1, 0.36, 1],
+        ease: easeOut,
       },
     },
   }
 
-  const closeButtonVariants = {
+  const closeButtonVariants: Variants = {
     hidden: { opacity: 0, rotate: -90, scale: 0.5 },
     visible: {
       opacity: 1,
@@ -143,7 +145,7 @@ export const AuthHeader = () => {
       scale: 1,
       transition: {
         duration: 0.4,
-        ease: [0.22, 1, 0.36, 1],
+        ease: easeOut,
         delay: 0.3,
       },
     },
@@ -237,7 +239,7 @@ export const AuthHeader = () => {
               }
               transition={{
                 duration: shouldAnimate ? 2.5 : 0,
-                ease: [0.25, 0.1, 0.25, 1],
+                ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number],
               }}
             >
               <motion.div
@@ -246,7 +248,7 @@ export const AuthHeader = () => {
                 layout={shouldAnimate}
                 transition={{
                   duration: shouldAnimate ? 2.5 : 0,
-                  ease: [0.25, 0.1, 0.25, 1],
+                  ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number],
                 }}
               >
                 <Link href="/" scroll={false}>
@@ -261,7 +263,7 @@ export const AuthHeader = () => {
                     animate={{ opacity: 1 }}
                     transition={{
                       duration: shouldAnimate ? 1.0 : 0,
-                      ease: [0.25, 0.1, 0.25, 1],
+                      ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number],
                     }}
                   >
                     {navItems.map((item) => (

@@ -4,7 +4,7 @@ import path from 'path'
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { shipments } from '@/db/schema'
-import { auth } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth'
 import { logAdminAction } from '@/lib/audit'
 
 const MAX_SIZE_BYTES = 5 * 1024 * 1024 // 5MB
@@ -15,8 +15,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await auth()
-    if (!session?.user?.id || session.user.role !== 'admin') {
+    const session = await requireAdmin()
+    if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

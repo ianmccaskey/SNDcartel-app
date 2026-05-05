@@ -1,16 +1,11 @@
 import { NextResponse } from 'next/server'
-import { eq, isNull, count, sum } from 'drizzle-orm'
+import { and, eq, isNull, count, sum } from 'drizzle-orm'
 import { db } from '@/db'
 import { groupBuys, acceptedPayments, products, orders } from '@/db/schema'
-import { auth } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth'
 import { logAdminAction } from '@/lib/audit'
 import { mapToCampaign } from '../route'
 import { z } from 'zod'
-
-function requireAdmin(session: Awaited<ReturnType<typeof auth>>) {
-  if (!session?.user?.id || session.user.role !== 'admin') return false
-  return true
-}
 
 // Extract network from token string e.g. "USDC (Ethereum)" → "Ethereum"
 function extractNetwork(token: string): string {
@@ -48,8 +43,8 @@ const patchSchema = z.object({
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await auth()
-    if (!requireAdmin(session)) {
+    const session = await requireAdmin()
+    if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -70,8 +65,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       db
         .select()
         .from(products)
-        .where(eq(products.groupBuyId, id))
-        .where(isNull(products.deletedAt)),
+        .where(and(eq(products.groupBuyId, id), isNull(products.deletedAt))),
       db
         .select({ count: count(), total: sum(orders.totalUsd) })
         .from(orders)
@@ -92,8 +86,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await auth()
-    if (!requireAdmin(session)) {
+    const session = await requireAdmin()
+    if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -156,8 +150,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const gbProducts = await db
       .select({ moq: products.moq })
       .from(products)
-      .where(eq(products.groupBuyId, id))
-      .where(isNull(products.deletedAt))
+      .where(and(eq(products.groupBuyId, id), isNull(products.deletedAt)))
 
     const totalMoq = gbProducts.reduce((sum, p) => sum + p.moq, 0) || 1
     await db.update(groupBuys).set({ totalMoqGoal: totalMoq, updatedAt: new Date() }).where(eq(groupBuys.id, id))
@@ -178,8 +171,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       db
         .select()
         .from(products)
-        .where(eq(products.groupBuyId, id))
-        .where(isNull(products.deletedAt)),
+        .where(and(eq(products.groupBuyId, id), isNull(products.deletedAt))),
     ])
 
     return NextResponse.json(mapToCampaign(updated, updatedPayments, updatedProducts))
@@ -191,8 +183,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await auth()
-    if (!requireAdmin(session)) {
+    const session = await requireAdmin()
+    if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

@@ -2,14 +2,9 @@ import { NextResponse } from 'next/server'
 import { isNull } from 'drizzle-orm'
 import { db } from '@/db'
 import { groupBuys, acceptedPayments, products } from '@/db/schema'
-import { auth } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth'
 import { logAdminAction } from '@/lib/audit'
 import { z } from 'zod'
-
-function requireAdmin(session: Awaited<ReturnType<typeof auth>>) {
-  if (!session?.user?.id || session.user.role !== 'admin') return false
-  return true
-}
 
 const createSchema = z.object({
   name: z.string().min(1).default('Untitled Campaign'),
@@ -19,8 +14,8 @@ const createSchema = z.object({
 
 export async function GET(request: Request) {
   try {
-    const session = await auth()
-    if (!requireAdmin(session)) {
+    const session = await requireAdmin()
+    if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -99,8 +94,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await auth()
-    if (!requireAdmin(session)) {
+    const session = await requireAdmin()
+    if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

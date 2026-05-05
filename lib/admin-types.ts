@@ -4,7 +4,7 @@ export interface Campaign {
   creatorDisplayName: string
   description: string
   imageUrl?: string
-  status: "draft" | "active" | "closed"
+  status: "draft" | "active" | "closed" | "fulfilled"
   deadline?: string
   publicLaunchTime?: string
   totalMOQ: number

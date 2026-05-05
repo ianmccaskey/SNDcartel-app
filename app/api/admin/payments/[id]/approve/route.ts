@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { payments, orders } from '@/db/schema'
-import { auth } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth'
 import { logAdminAction } from '@/lib/audit'
 import { z } from 'zod'
 
@@ -15,8 +15,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await auth()
-    if (!session?.user?.id || session.user.role !== 'admin') {
+    const session = await requireAdmin()
+    if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

@@ -2,13 +2,9 @@ import { NextResponse } from 'next/server'
 import { inArray, eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { orderItems } from '@/db/schema'
-import { auth } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth'
 import { logAdminAction } from '@/lib/audit'
 import { z } from 'zod'
-
-function requireAdmin(session: Awaited<ReturnType<typeof auth>>) {
-  return !!(session?.user?.id && session.user.role === 'admin')
-}
 
 const bulkFulfillmentSchema = z.object({
   orderIds: z.array(z.string().uuid()).min(1).max(200),
@@ -17,8 +13,8 @@ const bulkFulfillmentSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const session = await auth()
-    if (!requireAdmin(session)) {
+    const session = await requireAdmin()
+    if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

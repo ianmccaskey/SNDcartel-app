@@ -2,19 +2,15 @@ import { NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { payments, orders, users, groupBuys, alchemyWebhookEvents } from '@/db/schema'
-import { auth } from '@/lib/auth'
-
-function requireAdmin(session: Awaited<ReturnType<typeof auth>>) {
-  return !!(session?.user?.id && session.user.role === 'admin')
-}
+import { requireAdmin } from '@/lib/auth'
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await auth()
-    if (!requireAdmin(session)) {
+    const session = await requireAdmin()
+    if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

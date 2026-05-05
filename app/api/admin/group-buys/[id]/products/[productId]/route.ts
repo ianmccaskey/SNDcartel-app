@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
-import { eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { db } from '@/db'
 import { groupBuys, products } from '@/db/schema'
-import { auth } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth'
 import { logAdminAction } from '@/lib/audit'
 import { z } from 'zod'
 
@@ -27,8 +27,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; productId: string }> },
 ) {
   try {
-    const session = await auth()
-    if (!session?.user?.id || session.user.role !== 'admin') {
+    const session = await requireAdmin()
+    if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -77,8 +77,7 @@ export async function PATCH(
     const allProds = await db
       .select({ moq: products.moq })
       .from(products)
-      .where(eq(products.groupBuyId, groupBuyId))
-      .where(isNull(products.deletedAt))
+      .where(and(eq(products.groupBuyId, groupBuyId), isNull(products.deletedAt)))
 
     const totalMoq = allProds.reduce((s, p) => s + p.moq, 0) || 1
     await db.update(groupBuys).set({ totalMoqGoal: totalMoq, updatedAt: new Date() }).where(eq(groupBuys.id, groupBuyId))
@@ -120,8 +119,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; productId: string }> },
 ) {
   try {
-    const session = await auth()
-    if (!session?.user?.id || session.user.role !== 'admin') {
+    const session = await requireAdmin()
+    if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -143,8 +142,7 @@ export async function DELETE(
     const remaining = await db
       .select({ moq: products.moq })
       .from(products)
-      .where(eq(products.groupBuyId, groupBuyId))
-      .where(isNull(products.deletedAt))
+      .where(and(eq(products.groupBuyId, groupBuyId), isNull(products.deletedAt)))
 
     const totalMoq = remaining.reduce((s, p) => s + p.moq, 0) || 1
     await db.update(groupBuys).set({ totalMoqGoal: totalMoq, updatedAt: new Date() }).where(eq(groupBuys.id, groupBuyId))

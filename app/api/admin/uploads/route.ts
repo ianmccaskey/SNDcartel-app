@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
-import { auth } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth'
 
 const MAX_SIZE_BYTES = 5 * 1024 * 1024 // 5MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
@@ -21,8 +21,8 @@ const CDN_ENDPOINT = process.env.DO_SPACES_CDN_ENDPOINT
 
 export async function POST(request: Request) {
   try {
-    const session = await auth()
-    if (!session?.user?.id || session.user.role !== 'admin') {
+    const session = await requireAdmin()
+    if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

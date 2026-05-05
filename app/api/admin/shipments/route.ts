@@ -2,15 +2,11 @@ import { NextResponse } from 'next/server'
 import { eq, inArray } from 'drizzle-orm'
 import { db } from '@/db'
 import { shipments, orders, orderItems, users, groupBuys } from '@/db/schema'
-import { auth } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth'
 import { logAdminAction } from '@/lib/audit'
 import { getTrackingUrl } from '@/lib/tracking'
 import { sendShippingNotification } from '@/lib/email'
 import { z } from 'zod'
-
-function requireAdmin(session: Awaited<ReturnType<typeof auth>>) {
-  return !!(session?.user?.id && session.user.role === 'admin')
-}
 
 const createShipmentSchema = z.object({
   orderId: z.string().uuid(),
@@ -23,8 +19,8 @@ const createShipmentSchema = z.object({
 
 export async function GET(request: Request) {
   try {
-    const session = await auth()
-    if (!requireAdmin(session)) {
+    const session = await requireAdmin()
+    if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -87,8 +83,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await auth()
-    if (!requireAdmin(session)) {
+    const session = await requireAdmin()
+    if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
