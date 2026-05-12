@@ -3,8 +3,8 @@ import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
-import { shipments } from '@/db/schema'
-import { requireAdmin } from '@/lib/auth'
+import { shipments, orders } from '@/db/schema'
+import { canManageGroupBuy, requireAdminOrOperator } from '@/lib/permissions'
 import { logAdminAction } from '@/lib/audit'
 
 const MAX_SIZE_BYTES = 5 * 1024 * 1024 // 5MB
@@ -15,22 +15,32 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdminOrOperator()
     if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const { id } = await params
 
-    // Verify shipment exists
+    // Verify shipment exists and resolve the order's group buy for scoping.
     const [existing] = await db
-      .select({ id: shipments.id })
+      .select({ id: shipments.id, orderGroupBuyId: orders.groupBuyId })
       .from(shipments)
+      .leftJoin(orders, eq(shipments.orderId, orders.id))
       .where(eq(shipments.id, id))
       .limit(1)
 
     if (!existing) {
       return NextResponse.json({ error: 'Shipment not found' }, { status: 404 })
+    }
+
+    // Store orders (groupBuyId === null) are admin-only.
+    if (existing.orderGroupBuyId === null) {
+      if (session.user.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    } else if (!(await canManageGroupBuy(session, existing.orderGroupBuyId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const formData = await request.formData()

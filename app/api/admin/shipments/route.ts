@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server'
 import { eq, inArray } from 'drizzle-orm'
 import { db } from '@/db'
 import { shipments, orders, orderItems, users, groupBuys } from '@/db/schema'
-import { requireAdmin } from '@/lib/auth'
+import {
+  canManageGroupBuy,
+  listManageableGroupBuyIds,
+  requireAdminOrOperator,
+} from '@/lib/permissions'
 import { logAdminAction } from '@/lib/audit'
 import { getTrackingUrl } from '@/lib/tracking'
 import { sendShippingNotification } from '@/lib/email'
@@ -19,24 +23,48 @@ const createShipmentSchema = z.object({
 
 export async function GET(request: Request) {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdminOrOperator()
     if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const ownable = await listManageableGroupBuyIds(session)
+    if (ownable !== null && ownable.length === 0) {
+      return NextResponse.json({ shipments: [] })
     }
 
     const { searchParams } = new URL(request.url)
     const groupBuyId = searchParams.get('groupBuyId')
     const orderId = searchParams.get('orderId')
 
-    // Build subquery: get order IDs belonging to the groupBuy
+    // Build subquery: get order IDs belonging to the groupBuy (and, for
+    // operators, restricted to assigned group buys).
     let orderIds: string[] | null = null
     if (groupBuyId) {
+      if (ownable !== null && !ownable.includes(groupBuyId)) {
+        return NextResponse.json({ shipments: [] })
+      }
       const gbOrders = await db
         .select({ id: orders.id })
         .from(orders)
         .where(eq(orders.groupBuyId, groupBuyId))
       orderIds = gbOrders.map((o) => o.id)
       if (orderIds.length === 0) return NextResponse.json({ shipments: [] })
+    } else if (ownable !== null) {
+      // Operator with no groupBuyId filter: limit to orders within their
+      // assigned group buys.
+      const opOrders = await db
+        .select({ id: orders.id })
+        .from(orders)
+        .where(inArray(orders.groupBuyId, ownable))
+      orderIds = opOrders.map((o) => o.id)
+      if (orderIds.length === 0) return NextResponse.json({ shipments: [] })
+    }
+
+    // If an orderId filter is provided alongside operator scope, verify it
+    // is part of orderIds.
+    if (orderId && orderIds !== null && !orderIds.includes(orderId)) {
+      return NextResponse.json({ shipments: [] })
     }
 
     const rows = await db
@@ -83,7 +111,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdminOrOperator()
     if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -104,6 +132,7 @@ export async function POST(request: Request) {
         userId: orders.userId,
         userEmail: users.email,
         userFullName: users.fullName,
+        groupBuyId: orders.groupBuyId,
         groupBuyName: groupBuys.name,
         storeOrder: orders.storeOrder,
       })
@@ -115,6 +144,15 @@ export async function POST(request: Request) {
 
     if (!order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+    }
+
+    // Store orders (groupBuyId === null) are admin-only.
+    if (order.groupBuyId === null) {
+      if (session.user.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    } else if (!(await canManageGroupBuy(session, order.groupBuyId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     // Generate tracking URL
@@ -134,7 +172,7 @@ export async function POST(request: Request) {
         estimatedDelivery: estimatedDelivery ? new Date(estimatedDelivery) : null,
         isPartial: isPartial ?? false,
         notes: notes ?? null,
-        createdBy: session!.user!.id,
+        createdBy: session.user.id,
       })
       .returning()
 
@@ -153,7 +191,7 @@ export async function POST(request: Request) {
     }
 
     await logAdminAction({
-      adminUserId: session!.user!.id,
+      adminUserId: session.user.id,
       actionType: 'shipment_created',
       targetType: 'shipment',
       targetId: shipment.id,

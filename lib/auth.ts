@@ -7,6 +7,14 @@ import { z } from 'zod'
 import { authConfig } from '@/auth.config'
 import { db } from '@/db'
 import { users } from '@/db/schema'
+import type { Role } from '@/types/next-auth'
+
+// users.role is a plain text column in Postgres. Narrow at the trust boundary
+// (DB → JWT) and from this point onward TypeScript guarantees role is a Role.
+const ALLOWED_ROLES: readonly Role[] = ['user', 'operator', 'admin']
+function coerceRole(value: string): Role {
+  return (ALLOWED_ROLES as readonly string[]).includes(value) ? (value as Role) : 'user'
+}
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -38,7 +46,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           id: user.id,
           email: user.email,
           name: user.fullName ?? user.email,
-          role: user.role,
+          role: coerceRole(user.role),
         }
       },
     }),

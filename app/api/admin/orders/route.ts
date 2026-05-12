@@ -2,13 +2,22 @@ import { NextResponse } from 'next/server'
 import { eq, desc, and, inArray, ilike, or, sql } from 'drizzle-orm'
 import { db } from '@/db'
 import { orders, orderItems, groupBuys, users, payments } from '@/db/schema'
-import { requireAdmin } from '@/lib/auth'
+import { listManageableGroupBuyIds, requireAdminOrOperator } from '@/lib/permissions'
 
 export async function GET(request: Request) {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdminOrOperator()
     if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const ownable = await listManageableGroupBuyIds(session)
+    if (ownable !== null && ownable.length === 0) {
+      // Operator with no assignments — short-circuit
+      return NextResponse.json({
+        orders: [],
+        pagination: { page: 1, limit: 0, total: 0, totalPages: 0 },
+      })
     }
 
     const { searchParams } = new URL(request.url)
@@ -23,6 +32,9 @@ export async function GET(request: Request) {
     if (groupBuyId) conditions.push(eq(orders.groupBuyId, groupBuyId))
     if (status) conditions.push(eq(orders.orderStatus, status))
     if (userId) conditions.push(eq(orders.userId, userId))
+    // Operators see only orders for their assigned group buys (excludes
+    // store orders, which have groupBuyId === null).
+    if (ownable !== null) conditions.push(inArray(orders.groupBuyId, ownable))
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { orders, payments, adminActions } from '@/db/schema'
-import { requireAdmin } from '@/lib/auth'
+import { canManageGroupBuy, requireAdminOrOperator } from '@/lib/permissions'
 import { buildExplorerUrl } from '@/lib/alchemy'
 import { z } from 'zod'
 
@@ -21,7 +21,7 @@ export async function POST(
   { params }: { params: Promise<{ orderId: string }> },
 ) {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdminOrOperator()
     if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -45,13 +45,27 @@ export async function POST(
 
     // Verify order exists
     const [order] = await db
-      .select({ id: orders.id, totalUsd: orders.totalUsd, orderStatus: orders.orderStatus })
+      .select({
+        id: orders.id,
+        totalUsd: orders.totalUsd,
+        orderStatus: orders.orderStatus,
+        groupBuyId: orders.groupBuyId,
+      })
       .from(orders)
       .where(eq(orders.id, orderId))
       .limit(1)
 
     if (!order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+    }
+
+    // Store orders (groupBuyId === null) are admin-only.
+    if (order.groupBuyId === null) {
+      if (session.user.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    } else if (!(await canManageGroupBuy(session, order.groupBuyId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     if (order.orderStatus === 'payment_verified' || order.orderStatus === 'completed') {

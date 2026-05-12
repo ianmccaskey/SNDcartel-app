@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { groupBuys } from '@/db/schema'
-import { requireAdmin } from '@/lib/auth'
+import { canManageGroupBuy, requireAdminOrOperator } from '@/lib/permissions'
 import { logAdminAction } from '@/lib/audit'
 import { z } from 'zod'
 
@@ -19,12 +19,17 @@ const statusSchema = z.object({
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdminOrOperator()
     if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const { id } = await params
+
+    if (!(await canManageGroupBuy(session, id))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     const body = await request.json()
 
     const parsed = statusSchema.safeParse(body)

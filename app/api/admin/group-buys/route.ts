@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
-import { isNull } from 'drizzle-orm'
+import { and, inArray, isNull } from 'drizzle-orm'
 import { db } from '@/db'
-import { groupBuys, acceptedPayments, products } from '@/db/schema'
+import { groupBuys, groupBuyOperators, acceptedPayments, products } from '@/db/schema'
 import { requireAdmin } from '@/lib/auth'
+import { listManageableGroupBuyIds, requireAdminOrOperator } from '@/lib/permissions'
 import { logAdminAction } from '@/lib/audit'
 import { z } from 'zod'
 
@@ -14,9 +15,17 @@ const createSchema = z.object({
 
 export async function GET(request: Request) {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdminOrOperator()
     if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    // Operators see only their assigned campaigns; admins see all.
+    const ownable = await listManageableGroupBuyIds(session)
+    if (ownable !== null && ownable.length === 0) {
+      // Operator with no assignments — return empty list, don't run a query
+      // that would `IN ()` and error.
+      return NextResponse.json([])
     }
 
     const allGroupBuys = await db
@@ -40,7 +49,11 @@ export async function GET(request: Request) {
         updatedAt: groupBuys.updatedAt,
       })
       .from(groupBuys)
-      .where(isNull(groupBuys.deletedAt))
+      .where(
+        ownable === null
+          ? isNull(groupBuys.deletedAt)
+          : and(isNull(groupBuys.deletedAt), inArray(groupBuys.id, ownable)),
+      )
       .orderBy(groupBuys.createdAt)
 
     // Fetch all accepted_payments and products for these campaigns
@@ -94,7 +107,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdminOrOperator()
     if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -112,13 +125,24 @@ export async function POST(request: Request) {
         creatorDisplayName: parsed.data.creatorDisplayName,
         description: parsed.data.description,
         status: 'draft',
-        createdBy: session!.user!.id,
+        createdBy: session.user.id,
         metadata: { finalPaymentInfo: {}, cryptoFeeOptions: [], boxSizes: [], defaultPaddingFactor: 0 },
       })
       .returning()
 
+    // Operators who create a campaign are auto-assigned to it so they can
+    // continue managing it. Admins don't need a row in group_buy_operators —
+    // they're authorized via role, not assignment.
+    if (session.user.role === 'operator') {
+      await db.insert(groupBuyOperators).values({
+        groupBuyId: newGb.id,
+        operatorId: session.user.id,
+        createdBy: session.user.id,
+      })
+    }
+
     await logAdminAction({
-      adminUserId: session!.user!.id,
+      adminUserId: session.user.id,
       actionType: 'group_buy_created',
       targetType: 'group_buy',
       targetId: newGb.id,

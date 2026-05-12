@@ -3,10 +3,12 @@
 import { useState, useEffect, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { X, Copy, Check, Edit2, Save, Plus, Minus, Trash2, RefreshCw } from "lucide-react"
+import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,6 +114,8 @@ function orderStatusBadge(status: string) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function UserDetailOverlay({ userId, onClose, onUpdated }: UserDetailOverlayProps) {
+  const { data: session } = useSession()
+  const isViewingSelf = session?.user?.id === userId
   const [user, setUser] = useState<AdminUserDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -125,6 +129,8 @@ export function UserDetailOverlay({ userId, onClose, onUpdated }: UserDetailOver
   const [editedDiscord, setEditedDiscord] = useState("")
   const [editedNotes, setEditedNotes] = useState("")
   const [savingField, setSavingField] = useState(false)
+  const [savingRole, setSavingRole] = useState(false)
+  const [roleError, setRoleError] = useState<string | null>(null)
 
   // Order editing
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null)
@@ -187,6 +193,31 @@ export function UserDetailOverlay({ userId, onClose, onUpdated }: UserDetailOver
     navigator.clipboard.writeText(text)
     setCopiedAddress(text)
     setTimeout(() => setCopiedAddress(null), 2000)
+  }
+
+  // Update role (promote/demote). Backend rejects an admin demoting themselves.
+  const saveRole = async (newRole: "user" | "operator" | "admin") => {
+    if (!user || newRole === user.role) return
+    setSavingRole(true)
+    setRoleError(null)
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: newRole }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body?.error ?? "Save failed")
+      }
+      const updated = await res.json()
+      setUser((u) => (u ? { ...u, role: updated.role ?? newRole } : u))
+      onUpdated?.()
+    } catch (err) {
+      setRoleError(err instanceof Error ? err.message : "Save failed")
+    } finally {
+      setSavingRole(false)
+    }
   }
 
   // Save user field (discord or notes)
@@ -472,7 +503,28 @@ export function UserDetailOverlay({ userId, onClose, onUpdated }: UserDetailOver
                     </div>
                     <div>
                       <Label className="text-gray-400">Role</Label>
-                      <p className="text-white text-sm capitalize">{user.role}</p>
+                      <Select
+                        value={user.role}
+                        onValueChange={(v) => saveRole(v as "user" | "operator" | "admin")}
+                        disabled={savingRole || isViewingSelf}
+                      >
+                        <SelectTrigger className="mt-1 h-8 bg-white/5 border-white/10 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background/95 backdrop-blur-md border-white/10 text-white">
+                          <SelectItem value="user">User</SelectItem>
+                          <SelectItem value="operator">Operator</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {isViewingSelf && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Have another admin change your own role.
+                        </p>
+                      )}
+                      {roleError && (
+                        <p className="text-xs text-red-400 mt-1">{roleError}</p>
+                      )}
                     </div>
                   </div>
 

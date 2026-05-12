@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from 'next-auth'
+import type { Role } from '@/types/next-auth'
 
 // Edge-safe auth config — no DB imports allowed here (used by middleware)
 export const authConfig = {
@@ -9,13 +10,13 @@ export const authConfig = {
     jwt({ token, user }) {
       if (user) {
         token.id = user.id
-        token.role = (user as { role?: string }).role ?? 'user'
+        token.role = ((user as { role?: Role }).role ?? 'user') as Role
       }
       return token
     },
     session({ session, token }) {
       if (token.id) session.user.id = token.id as string
-      if (token.role) session.user.role = token.role as string
+      if (token.role) session.user.role = token.role as Role
       return session
     },
     authorized({ auth, request: { nextUrl } }) {
@@ -41,10 +42,12 @@ export const authConfig = {
       // Require login for everything else
       if (!isLoggedIn) return false
 
-      // Admin pages require admin role
+      // /admin/* is reachable by admin OR operator. Fine-grained, per-resource
+      // gating (operator can only touch their own group buys) is enforced
+      // inside each API route via lib/permissions.ts, not here.
       if (isAdminPage) {
-        const user = auth?.user as { role?: string } | undefined
-        if (user?.role !== 'admin') {
+        const user = auth?.user as { role?: Role } | undefined
+        if (user?.role !== 'admin' && user?.role !== 'operator') {
           const homeUrl = new URL('/home', process.env.NEXTAUTH_URL || nextUrl.origin)
           return Response.redirect(homeUrl)
         }

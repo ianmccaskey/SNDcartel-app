@@ -10,6 +10,7 @@ const patchSchema = z.object({
   notes: z.string().optional(),
   accountStatus: z.enum(['active', 'suspended', 'pending']).optional(),
   discordName: z.string().optional(),
+  role: z.enum(['user', 'operator', 'admin']).optional(),
 })
 
 export async function GET(
@@ -198,22 +199,44 @@ export async function PATCH(
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const updateData: Partial<{ notes: string | null; accountStatus: string; discordName: string | null; updatedAt: Date }> = {
+    // Prevent admins from demoting themselves out of the admin role, which
+    // could lock the platform out of admin functions in a single click.
+    if (parsed.data.role !== undefined && id === session.user.id && parsed.data.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'You cannot remove your own admin role. Have another admin demote you.' },
+        { status: 422 },
+      )
+    }
+
+    const updateData: Partial<{
+      notes: string | null
+      accountStatus: string
+      discordName: string | null
+      role: string
+      updatedAt: Date
+    }> = {
       updatedAt: new Date(),
     }
 
     if (parsed.data.notes !== undefined) updateData.notes = parsed.data.notes
     if (parsed.data.accountStatus !== undefined) updateData.accountStatus = parsed.data.accountStatus
     if (parsed.data.discordName !== undefined) updateData.discordName = parsed.data.discordName
+    if (parsed.data.role !== undefined) updateData.role = parsed.data.role
 
     const [updated] = await db
       .update(users)
       .set(updateData)
       .where(eq(users.id, id))
-      .returning({ id: users.id, accountStatus: users.accountStatus, notes: users.notes, discordName: users.discordName })
+      .returning({
+        id: users.id,
+        accountStatus: users.accountStatus,
+        notes: users.notes,
+        discordName: users.discordName,
+        role: users.role,
+      })
 
     await logAdminAction({
-      adminUserId: session!.user!.id,
+      adminUserId: session.user.id,
       actionType: 'user_updated',
       targetType: 'user',
       targetId: id,

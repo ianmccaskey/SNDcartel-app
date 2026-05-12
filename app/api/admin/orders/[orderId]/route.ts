@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { eq, inArray } from 'drizzle-orm'
 import { db } from '@/db'
 import { orders, orderItems, groupBuys, users, payments } from '@/db/schema'
-import { requireAdmin } from '@/lib/auth'
+import { canManageGroupBuy, requireAdminOrOperator } from '@/lib/permissions'
 import { logAdminAction } from '@/lib/audit'
 import { z } from 'zod'
 
@@ -27,7 +27,7 @@ export async function GET(
   { params }: { params: Promise<{ orderId: string }> },
 ) {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdminOrOperator()
     if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -64,6 +64,15 @@ export async function GET(
 
     if (!order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+    }
+
+    // Store orders (groupBuyId === null) are admin-only.
+    if (order.groupBuyId === null) {
+      if (session.user.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    } else if (!(await canManageGroupBuy(session, order.groupBuyId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const items = await db
@@ -133,7 +142,7 @@ export async function PATCH(
   { params }: { params: Promise<{ orderId: string }> },
 ) {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdminOrOperator()
     if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -147,13 +156,22 @@ export async function PATCH(
     }
 
     const [existing] = await db
-      .select({ id: orders.id, orderStatus: orders.orderStatus })
+      .select({ id: orders.id, orderStatus: orders.orderStatus, groupBuyId: orders.groupBuyId })
       .from(orders)
       .where(eq(orders.id, orderId))
       .limit(1)
 
     if (!existing) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+    }
+
+    // Store orders (groupBuyId === null) are admin-only.
+    if (existing.groupBuyId === null) {
+      if (session.user.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    } else if (!(await canManageGroupBuy(session, existing.groupBuyId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const updateData: Partial<{ orderStatus: string; adminNotes: string; updatedAt: Date }> = {
@@ -170,7 +188,7 @@ export async function PATCH(
       .returning()
 
     await logAdminAction({
-      adminUserId: session!.user!.id,
+      adminUserId: session.user.id,
       actionType: 'order_updated',
       targetType: 'order',
       targetId: orderId,

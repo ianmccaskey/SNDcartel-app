@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { shipments, orders, orderItems } from '@/db/schema'
-import { requireAdmin } from '@/lib/auth'
+import { canManageGroupBuy, requireAdminOrOperator } from '@/lib/permissions'
 import { logAdminAction } from '@/lib/audit'
 import { getTrackingUrl } from '@/lib/tracking'
 import { z } from 'zod'
@@ -22,22 +22,34 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdminOrOperator()
     if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const { id } = await params
 
-    const [shipment] = await db
-      .select()
+    const [row] = await db
+      .select({ shipment: shipments, orderGroupBuyId: orders.groupBuyId })
       .from(shipments)
+      .leftJoin(orders, eq(shipments.orderId, orders.id))
       .where(eq(shipments.id, id))
       .limit(1)
 
-    if (!shipment) {
+    if (!row) {
       return NextResponse.json({ error: 'Shipment not found' }, { status: 404 })
     }
+
+    // Store orders (groupBuyId === null) are admin-only.
+    if (row.orderGroupBuyId === null) {
+      if (session.user.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    } else if (!(await canManageGroupBuy(session, row.orderGroupBuyId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const shipment = row.shipment
 
     return NextResponse.json({
       ...shipment,
@@ -58,7 +70,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdminOrOperator()
     if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -71,13 +83,29 @@ export async function PATCH(
     }
 
     const [existing] = await db
-      .select({ id: shipments.id, orderId: shipments.orderId, carrier: shipments.carrier, trackingNumber: shipments.trackingNumber })
+      .select({
+        id: shipments.id,
+        orderId: shipments.orderId,
+        carrier: shipments.carrier,
+        trackingNumber: shipments.trackingNumber,
+        orderGroupBuyId: orders.groupBuyId,
+      })
       .from(shipments)
+      .leftJoin(orders, eq(shipments.orderId, orders.id))
       .where(eq(shipments.id, id))
       .limit(1)
 
     if (!existing) {
       return NextResponse.json({ error: 'Shipment not found' }, { status: 404 })
+    }
+
+    // Store orders (groupBuyId === null) are admin-only.
+    if (existing.orderGroupBuyId === null) {
+      if (session.user.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    } else if (!(await canManageGroupBuy(session, existing.orderGroupBuyId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const now = new Date()
@@ -122,7 +150,7 @@ export async function PATCH(
       .returning()
 
     await logAdminAction({
-      adminUserId: session!.user!.id,
+      adminUserId: session.user.id,
       actionType: 'shipment_updated',
       targetType: 'shipment',
       targetId: id,

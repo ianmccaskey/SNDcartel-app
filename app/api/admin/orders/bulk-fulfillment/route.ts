@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
-import { inArray, eq } from 'drizzle-orm'
+import { inArray, eq, and } from 'drizzle-orm'
 import { db } from '@/db'
-import { orderItems } from '@/db/schema'
-import { requireAdmin } from '@/lib/auth'
+import { orderItems, orders } from '@/db/schema'
+import { listManageableGroupBuyIds, requireAdminOrOperator } from '@/lib/permissions'
 import { logAdminAction } from '@/lib/audit'
 import { z } from 'zod'
 
@@ -13,7 +13,7 @@ const bulkFulfillmentSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdminOrOperator()
     if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -26,6 +26,23 @@ export async function POST(request: Request) {
 
     const { orderIds, fulfillmentStatus } = parsed.data
 
+    const ownable = await listManageableGroupBuyIds(session)
+    if (ownable !== null) {
+      // Operator: verify every requested order belongs to a group buy they
+      // manage. Reject the whole request if any order is out of scope so we
+      // never silently drop updates.
+      if (ownable.length === 0) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      const ownedRows = await db
+        .select({ id: orders.id })
+        .from(orders)
+        .where(and(inArray(orders.id, orderIds), inArray(orders.groupBuyId, ownable)))
+      if (ownedRows.length !== orderIds.length) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    }
+
     const result = await db
       .update(orderItems)
       .set({ fulfillmentStatus, updatedAt: new Date() })
@@ -33,7 +50,7 @@ export async function POST(request: Request) {
       .returning({ id: orderItems.id })
 
     await logAdminAction({
-      adminUserId: session!.user!.id,
+      adminUserId: session.user.id,
       actionType: 'bulk_fulfillment_status_updated',
       targetType: 'order',
       targetId: orderIds[0],

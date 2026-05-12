@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { eq, sql } from 'drizzle-orm'
 import { db } from '@/db'
 import { orders, orderItems } from '@/db/schema'
-import { requireAdmin } from '@/lib/auth'
+import { canManageGroupBuy, requireAdminOrOperator } from '@/lib/permissions'
 import { logAdminAction } from '@/lib/audit'
 import { z } from 'zod'
 
@@ -18,7 +18,7 @@ export async function PATCH(
   { params }: { params: Promise<{ orderId: string; itemId: string }> },
 ) {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdminOrOperator()
     if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -38,13 +38,24 @@ export async function PATCH(
         quantity: orderItems.quantity,
         unitPriceUsd: orderItems.unitPriceUsd,
         fulfillmentStatus: orderItems.fulfillmentStatus,
+        orderGroupBuyId: orders.groupBuyId,
       })
       .from(orderItems)
+      .leftJoin(orders, eq(orderItems.orderId, orders.id))
       .where(eq(orderItems.id, itemId))
       .limit(1)
 
     if (!existing || existing.orderId !== orderId) {
       return NextResponse.json({ error: 'Item not found' }, { status: 404 })
+    }
+
+    // Store orders (groupBuyId === null) are admin-only.
+    if (existing.orderGroupBuyId === null) {
+      if (session.user.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    } else if (!(await canManageGroupBuy(session, existing.orderGroupBuyId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const updateData: Partial<{ quantity: number; fulfillmentStatus: string; updatedAt: Date }> = {
@@ -76,7 +87,7 @@ export async function PATCH(
     }
 
     await logAdminAction({
-      adminUserId: session!.user!.id,
+      adminUserId: session.user.id,
       actionType: 'order_item_updated',
       targetType: 'order',
       targetId: orderId,
@@ -102,7 +113,7 @@ export async function DELETE(
   { params }: { params: Promise<{ orderId: string; itemId: string }> },
 ) {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdminOrOperator()
     if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -116,13 +127,24 @@ export async function DELETE(
         quantity: orderItems.quantity,
         unitPriceUsd: orderItems.unitPriceUsd,
         productNameSnapshot: orderItems.productNameSnapshot,
+        orderGroupBuyId: orders.groupBuyId,
       })
       .from(orderItems)
+      .leftJoin(orders, eq(orderItems.orderId, orders.id))
       .where(eq(orderItems.id, itemId))
       .limit(1)
 
     if (!existing || existing.orderId !== orderId) {
       return NextResponse.json({ error: 'Item not found' }, { status: 404 })
+    }
+
+    // Store orders (groupBuyId === null) are admin-only.
+    if (existing.orderGroupBuyId === null) {
+      if (session.user.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    } else if (!(await canManageGroupBuy(session, existing.orderGroupBuyId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     await db.delete(orderItems).where(eq(orderItems.id, itemId))
@@ -139,7 +161,7 @@ export async function DELETE(
       .where(eq(orders.id, orderId))
 
     await logAdminAction({
-      adminUserId: session!.user!.id,
+      adminUserId: session.user.id,
       actionType: 'order_item_removed',
       targetType: 'order',
       targetId: orderId,

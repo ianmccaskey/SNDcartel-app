@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { and, eq, isNull } from 'drizzle-orm'
 import { db } from '@/db'
 import { groupBuys, products } from '@/db/schema'
-import { requireAdmin } from '@/lib/auth'
+import { canManageGroupBuy, requireAdminOrOperator } from '@/lib/permissions'
 import { logAdminAction } from '@/lib/audit'
 import { z } from 'zod'
 
@@ -27,12 +27,16 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; productId: string }> },
 ) {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdminOrOperator()
     if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const { id: groupBuyId, productId } = await params
+
+    if (!(await canManageGroupBuy(session, groupBuyId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const [existing] = await db
       .select()
@@ -119,12 +123,16 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; productId: string }> },
 ) {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdminOrOperator()
     if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const { id: groupBuyId, productId } = await params
+
+    if (!(await canManageGroupBuy(session, groupBuyId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const [existing] = await db
       .select({ id: products.id, name: products.name, groupBuyId: products.groupBuyId, deletedAt: products.deletedAt })

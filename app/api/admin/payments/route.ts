@@ -1,14 +1,22 @@
 import { NextResponse } from 'next/server'
-import { eq, desc, and, sql } from 'drizzle-orm'
+import { eq, desc, and, inArray, sql } from 'drizzle-orm'
 import { db } from '@/db'
 import { payments, orders, users, groupBuys } from '@/db/schema'
-import { requireAdmin } from '@/lib/auth'
+import { listManageableGroupBuyIds, requireAdminOrOperator } from '@/lib/permissions'
 
 export async function GET(request: Request) {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdminOrOperator()
     if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const ownable = await listManageableGroupBuyIds(session)
+    if (ownable !== null && ownable.length === 0) {
+      return NextResponse.json({
+        payments: [],
+        pagination: { page: 1, limit: 0, total: 0, totalPages: 0 },
+      })
     }
 
     const { searchParams } = new URL(request.url)
@@ -17,7 +25,27 @@ export async function GET(request: Request) {
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') ?? '50')))
     const offset = (page - 1) * limit
 
-    const whereClause = status === 'all' ? undefined : eq(payments.status, status)
+    // For operators: restrict to payments whose order belongs to an
+    // assigned group buy. Compute the eligible orderIds up front.
+    let operatorOrderIds: string[] | null = null
+    if (ownable !== null) {
+      const opOrders = await db
+        .select({ id: orders.id })
+        .from(orders)
+        .where(inArray(orders.groupBuyId, ownable))
+      operatorOrderIds = opOrders.map((o) => o.id)
+      if (operatorOrderIds.length === 0) {
+        return NextResponse.json({
+          payments: [],
+          pagination: { page: 1, limit: 0, total: 0, totalPages: 0 },
+        })
+      }
+    }
+
+    const conditions = []
+    if (status !== 'all') conditions.push(eq(payments.status, status))
+    if (operatorOrderIds !== null) conditions.push(inArray(payments.orderId, operatorOrderIds))
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)::int` })

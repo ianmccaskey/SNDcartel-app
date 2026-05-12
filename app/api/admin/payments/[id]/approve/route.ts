@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { payments, orders } from '@/db/schema'
-import { requireAdmin } from '@/lib/auth'
+import { canManageGroupBuy, requireAdminOrOperator } from '@/lib/permissions'
 import { logAdminAction } from '@/lib/audit'
 import { z } from 'zod'
 
@@ -15,7 +15,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await requireAdmin()
+    const session = await requireAdminOrOperator()
     if (!session) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
@@ -27,13 +27,28 @@ export async function PATCH(
     const adminNotes = parsed.success ? parsed.data.adminNotes : undefined
 
     const [payment] = await db
-      .select({ id: payments.id, orderId: payments.orderId, status: payments.status })
+      .select({
+        id: payments.id,
+        orderId: payments.orderId,
+        status: payments.status,
+        orderGroupBuyId: orders.groupBuyId,
+      })
       .from(payments)
+      .leftJoin(orders, eq(payments.orderId, orders.id))
       .where(eq(payments.id, id))
       .limit(1)
 
     if (!payment) {
       return NextResponse.json({ error: 'Payment not found' }, { status: 404 })
+    }
+
+    // Store orders (groupBuyId === null) are admin-only.
+    if (payment.orderGroupBuyId === null) {
+      if (session.user.role !== 'admin') {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+    } else if (!(await canManageGroupBuy(session, payment.orderGroupBuyId))) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     if (payment.status !== 'pending') {

@@ -2,8 +2,10 @@
 
 import type React from "react"
 
+import { useSession } from "next-auth/react"
 import { useState, useEffect, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
+import { CampaignOperatorsCard } from "@/components/admin/campaign-operators-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -56,6 +58,8 @@ export const findSmallestFittingBox = (
 }
 
 export function CampaignManagement() {
+  const { data: session } = useSession()
+  const isAdmin = session?.user?.role === "admin"
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null)
   const [expandedSections, setExpandedSections] = useState({
@@ -1244,6 +1248,9 @@ export function CampaignManagement() {
               </CardContent>
             )}
           </Card>
+
+          {/* Operators Section — admin only */}
+          {isAdmin && <CampaignOperatorsCard campaignId={selectedCampaign.id} />}
 
           {/* Save Button */}
           <div className="flex justify-end">
