@@ -14,7 +14,9 @@ export const AuthHeader = () => {
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-  const isAdmin = session?.user?.role === "admin"
+  // Both admin and operator roles have access to /admin (operators see a
+  // scoped view). Show the nav link for either.
+  const isStaff = session?.user?.role === "admin" || session?.user?.role === "operator"
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)")
@@ -49,7 +51,7 @@ export const AuthHeader = () => {
     { href: "/store", label: "Store" },
   ]
 
-  const navItems = isAdmin
+  const navItems = isStaff
     ? [...baseNavItems, { href: "/admin", label: "Admin" }]
     : baseNavItems
 
