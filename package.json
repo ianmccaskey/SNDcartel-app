@@ -2,6 +2,20 @@
   "name": "my-v0-project",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": "22.x",
+    "pnpm": "10.x"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@tailwindcss/oxide",
+      "esbuild",
+      "sharp",
+      "bufferutil",
+      "utf-8-validate"
+    ]
+  },
   "scripts": {
     "build": "next build",
     "dev": "next dev",
