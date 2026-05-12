@@ -143,12 +143,19 @@ The intended workflows for the three personas. ✅ marks steps the app already s
 ### Phase 0 — Stabilize and audit (1–2 days)
 **Goal:** clean foundation before adding anything new.
 
-- [ ] Remove `typescript.ignoreBuildErrors` and `eslint.ignoreDuringBuilds` from [`next.config.ts`](E:/workspace/SNDcartel-app/next.config.ts); fix every TypeScript error that surfaces (most likely `drizzle-orm` typing in admin route handlers — visible from earlier `tsc` runs)
-- [ ] Remove hardcoded `allowedDevOrigins: ['192.168.18.5']` from `next.config.ts`
-- [ ] Add npm scripts to `package.json`: `db:push`, `db:generate`, `db:migrate`, `db:seed`
-- [ ] Document the deploy branch convention (currently `v0/appleporgy-3573-0ca5d4ff`); decide whether to rename to `main` or formal `production`
-- [ ] Add `.env.example` parity check vs production env vars
-- [ ] Decide: should `db/seed-orders.ts` and the test orders it created (still in production Neon DB) be removed? Or kept as dev fixtures? Document the answer
+- [x] Remove `typescript.ignoreBuildErrors` and `eslint.ignoreDuringBuilds` from [`next.config.ts`](E:/workspace/SNDcartel-app/next.config.ts); fix every TypeScript error that surfaces — **DONE** (commit `a9db673`, ~150 → 0 errors; full `pnpm build` clean)
+- [x] Remove hardcoded `allowedDevOrigins: ['192.168.18.5']` from `next.config.ts` — **DONE** (same commit)
+- [x] Add npm scripts to `package.json`: `db:push`, `db:generate`, `db:migrate`, `db:seed` — **DONE** (commit `8efe0dc`; also added `db:studio` and `typecheck`)
+- [x] Add `.env.example` parity check vs production env vars — **DONE**. Findings: `.env.example` was missing the actual DigitalOcean Spaces vars used by `app/api/admin/uploads/route.ts` (`DO_SPACES_REGION/KEY/SECRET/BUCKET/CDN_ENDPOINT`); listed aspirational R2/Vercel-Blob alternatives we don't use; documented `USDC_CONTRACT_*` env overrides that aren't actually read (addresses hardcoded in `lib/alchemy.ts`); used `EMAIL_FROM` while code reads `RESEND_FROM_ADDRESS`. Now rewritten to mirror reality 1:1.
+- [x] **Decision: deploy branch convention.** Keep `v0/appleporgy-3573-0ca5d4ff` as the active deploy branch for now — DigitalOcean App Platform is wired to it, renaming touches infra config in two places and there's no functional benefit. **When we rename:** Phase 8 (production-readiness pass). Rename target: `production`. Rename procedure: (1) push as new branch in GitHub, (2) update DO App Platform → Settings → Source → branch, (3) trigger redeploy, (4) verify, (5) delete the v0 branch. Until then, treat `v0/appleporgy-3573-0ca5d4ff` as production-equivalent and `fix/admin-mobile-responsive` as the dev integration branch.
+- [x] **Decision: `db/seed-orders.ts`.** Keep in-tree as a dev fixture — it's idempotent (checks for `[seed-test-fulfillment]` marker before inserting), self-cleaning (cleanup SQL documented at top of file), and exercises the full fulfillment surface. Was untracked locally; now committed. **Test rows still in production Neon DB:** flagged for cleanup in Phase 8 production-readiness. To delete:
+  ```sql
+  DELETE FROM shipments    WHERE notes      = '[seed-test-fulfillment]';
+  DELETE FROM order_items  WHERE order_id IN
+    (SELECT id FROM orders WHERE user_notes = '[seed-test-fulfillment]');
+  DELETE FROM orders       WHERE user_notes = '[seed-test-fulfillment]';
+  ```
+- [x] Tighten `.gitignore` to cover `.env.*.bak` — **DONE** (commit alongside env parity)
 
 ### Phase 1 — Schema & data-model deltas (1–2 days)
 **Goal:** introduce only the tables and columns we actually need; ship migrations.
