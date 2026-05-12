@@ -20,7 +20,7 @@ export const users = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     email: text('email').notNull().unique(),
     passwordHash: text('password_hash').notNull(),
-    role: text('role').notNull().default('user'), // 'user' | 'admin'
+    role: text('role').notNull().default('user'), // 'user' | 'operator' | 'admin'
 
     // Profile fields
     fullName: text('full_name'),
@@ -129,6 +129,29 @@ export const groupBuys = pgTable(
   (table) => [
     index('idx_group_buys_status').on(table.status),
     index('idx_group_buys_end_date').on(table.endDate),
+  ],
+)
+
+// ─── Group Buy Operators (junction) ──────────────────────────────────────────
+// Many-to-many mapping of operator users to the group buys they may manage.
+// Admins implicitly manage every group buy and do NOT need rows here.
+
+export const groupBuyOperators = pgTable(
+  'group_buy_operators',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    groupBuyId: uuid('group_buy_id')
+      .notNull()
+      .references(() => groupBuys.id, { onDelete: 'cascade' }),
+    operatorId: uuid('operator_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdBy: uuid('created_by').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('idx_group_buy_operators_unique').on(table.groupBuyId, table.operatorId),
+    index('idx_group_buy_operators_operator').on(table.operatorId),
   ],
 )
 
@@ -297,6 +320,30 @@ export const orderItems = pgTable(
   ],
 )
 
+// ─── Order Status History ────────────────────────────────────────────────────
+// Append-only audit trail of every orderStatus transition.
+// A row is inserted from every handler that mutates orders.orderStatus.
+// changedBy is NULL for system-driven transitions (e.g. Alchemy webhook auto-verify).
+
+export const orderStatusHistory = pgTable(
+  'order_status_history',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    fromStatus: text('from_status'), // null for the row representing initial creation
+    toStatus: text('to_status').notNull(),
+    changedBy: uuid('changed_by').references(() => users.id), // null = system
+    reason: text('reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_order_status_history_order').on(table.orderId),
+    index('idx_order_status_history_created').on(table.createdAt),
+  ],
+)
+
 // ─── Payments ─────────────────────────────────────────────────────────────────
 
 export const payments = pgTable(
@@ -438,6 +485,9 @@ export type NewWallet = typeof wallets.$inferInsert
 export type GroupBuy = typeof groupBuys.$inferSelect
 export type NewGroupBuy = typeof groupBuys.$inferInsert
 
+export type GroupBuyOperator = typeof groupBuyOperators.$inferSelect
+export type NewGroupBuyOperator = typeof groupBuyOperators.$inferInsert
+
 export type AcceptedPayment = typeof acceptedPayments.$inferSelect
 export type NewAcceptedPayment = typeof acceptedPayments.$inferInsert
 
@@ -452,6 +502,9 @@ export type NewOrder = typeof orders.$inferInsert
 
 export type OrderItem = typeof orderItems.$inferSelect
 export type NewOrderItem = typeof orderItems.$inferInsert
+
+export type OrderStatusHistory = typeof orderStatusHistory.$inferSelect
+export type NewOrderStatusHistory = typeof orderStatusHistory.$inferInsert
 
 export type Payment = typeof payments.$inferSelect
 export type NewPayment = typeof payments.$inferInsert
