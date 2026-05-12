@@ -52,11 +52,16 @@ export function CampaignOperatorsCard({ campaignId }: Props) {
 
   const fetchCandidates = useCallback(async () => {
     try {
-      // The admin users list returns every user; filter client-side to operators.
-      const res = await fetch("/api/admin/users")
+      // The admin users list returns { users: [...], pagination: {...} }.
+      // Filter client-side to role=operator. Bump limit so we don't miss any
+      // on a busy platform — server caps at 100, which is plenty for the
+      // operator-pool size we expect.
+      const res = await fetch("/api/admin/users?limit=100")
       if (!res.ok) throw new Error(`Failed to load users (${res.status})`)
-      const data = (await res.json()) as Array<{ id: string; email: string; fullName: string | null; role: string }>
-      setCandidates(data.filter((u) => u.role === "operator"))
+      const data = (await res.json()) as {
+        users: Array<{ id: string; email: string; fullName: string | null; role: string }>
+      }
+      setCandidates(data.users.filter((u) => u.role === "operator"))
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load users")
     }

@@ -131,6 +131,7 @@ export function UserDetailOverlay({ userId, onClose, onUpdated }: UserDetailOver
   const [savingField, setSavingField] = useState(false)
   const [savingRole, setSavingRole] = useState(false)
   const [roleError, setRoleError] = useState<string | null>(null)
+  const [roleChanged, setRoleChanged] = useState(false)
 
   // Order editing
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null)
@@ -212,6 +213,7 @@ export function UserDetailOverlay({ userId, onClose, onUpdated }: UserDetailOver
       }
       const updated = await res.json()
       setUser((u) => (u ? { ...u, role: updated.role ?? newRole } : u))
+      setRoleChanged(true)
       onUpdated?.()
     } catch (err) {
       setRoleError(err instanceof Error ? err.message : "Save failed")
@@ -524,6 +526,11 @@ export function UserDetailOverlay({ userId, onClose, onUpdated }: UserDetailOver
                       )}
                       {roleError && (
                         <p className="text-xs text-red-400 mt-1">{roleError}</p>
+                      )}
+                      {roleChanged && !isViewingSelf && (
+                        <p className="text-xs text-yellow-400 mt-1">
+                          User must sign out and back in for the new role to take effect.
+                        </p>
                       )}
                     </div>
                   </div>
