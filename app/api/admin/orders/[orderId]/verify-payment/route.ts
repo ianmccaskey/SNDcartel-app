@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { orders, payments, adminActions } from '@/db/schema'
 import { canManageGroupBuy, requireAdminOrOperator } from '@/lib/permissions'
 import { buildExplorerUrl } from '@/lib/alchemy'
+import { notifyPaymentVerified } from '@/lib/order-emails'
 import { z } from 'zod'
 
 const verifySchema = z.object({
@@ -132,6 +133,10 @@ export async function POST(
         amountSubmittedUsd,
       },
     })
+
+    // Customer notification — fire-and-forget so a Resend failure can't
+    // unwind the verification that already landed in the DB above.
+    void notifyPaymentVerified(orderId, 'manual')
 
     return NextResponse.json({ ok: true, paymentId: payment.id, orderId })
   } catch (error) {
