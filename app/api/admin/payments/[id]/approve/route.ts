@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { payments, orders } from '@/db/schema'
 import { canManageGroupBuy, requireAdminOrOperator } from '@/lib/permissions'
 import { logAdminAction } from '@/lib/audit'
+import { notifyPaymentVerified } from '@/lib/order-emails'
 import { z } from 'zod'
 
 const approveSchema = z.object({
@@ -88,6 +89,10 @@ export async function PATCH(
       payload: { orderId: payment.orderId, adminNotes },
       request,
     })
+
+    // Customer notification — fire-and-forget so a Resend failure can't
+    // unwind the verification that already landed in the DB above.
+    void notifyPaymentVerified(payment.orderId, 'manual')
 
     return NextResponse.json({ ok: true, paymentId: id, orderId: payment.orderId })
   } catch (error) {

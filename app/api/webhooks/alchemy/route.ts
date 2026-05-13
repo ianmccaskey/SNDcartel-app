@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { orders, alchemyWebhookEvents } from '@/db/schema'
 import { verifyAlchemySignature, USDC_CONTRACTS, usdcRawToUsd } from '@/lib/alchemy'
 import { matchPaymentToOrders, AUTO_APPROVE_THRESHOLD, type AlchemyTransfer } from '@/lib/payment-matcher'
+import { notifyPaymentVerified } from '@/lib/order-emails'
 
 // App Router automatically gives us the raw body via request.text(),
 // which is what we need for HMAC verification — no extra config required.
@@ -125,6 +126,10 @@ export async function POST(request: Request) {
         .update(alchemyWebhookEvents)
         .set({ processed: true })
         .where(eq(alchemyWebhookEvents.id, webhookEvent.id))
+
+      // Customer notification — fire-and-forget so email latency / failures
+      // never block the webhook ack to Alchemy.
+      void notifyPaymentVerified(topMatch.orderId, 'auto')
 
       results.push({ txHash, matched: true, orderId: topMatch.orderId, confidence: topMatch.confidence })
     }

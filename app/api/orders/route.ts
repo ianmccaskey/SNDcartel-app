@@ -3,7 +3,13 @@ import { eq, desc, and, isNull, inArray, sql } from 'drizzle-orm'
 import { db } from '@/db'
 import { orders, orderItems, groupBuys, storeProducts, products, users } from '@/db/schema'
 import { auth } from '@/lib/auth'
+import { sendOrderConfirmation } from '@/lib/email'
 import { z } from 'zod'
+
+function appUrl(path: string): string {
+  const base = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
+  return `${base.replace(/\/$/, '')}${path}`
+}
 
 const createOrderSchema = z.object({
   groupBuyId: z.string().uuid().optional(),
@@ -147,7 +153,11 @@ export async function POST(request: Request) {
 
     // Validate user profile is complete before placing an order
     const [user] = await db
-      .select({ profileComplete: users.profileComplete })
+      .select({
+        profileComplete: users.profileComplete,
+        email: users.email,
+        fullName: users.fullName,
+      })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1)
@@ -175,11 +185,19 @@ export async function POST(request: Request) {
       }
     }
 
-    // Validate each product exists and is in stock
+    // Validate each product exists and is in stock; enforce maxPerUser server-side.
+    // The UI clamps maxPerUser already but this is the only enforceable boundary —
+    // a direct API caller could otherwise post arbitrary quantities.
     for (const item of items) {
       if (item.productId) {
         const [prod] = await db
-          .select({ inStock: products.inStock, deletedAt: products.deletedAt })
+          .select({
+            inStock: products.inStock,
+            deletedAt: products.deletedAt,
+            maxPerUser: products.maxPerUser,
+            groupBuyId: products.groupBuyId,
+            name: products.name,
+          })
           .from(products)
           .where(eq(products.id, item.productId))
           .limit(1)
@@ -191,6 +209,36 @@ export async function POST(request: Request) {
             { error: `Product "${item.productNameSnapshot}" is out of stock` },
             { status: 409 },
           )
+        }
+
+        // Per-user cap: count how many units this user has already ordered of this
+        // product on non-cancelled, non-rejected orders, then add the new quantity.
+        if (prod.maxPerUser != null && prod.maxPerUser > 0) {
+          const [existing] = await db
+            .select({
+              alreadyOrdered: sql<number>`coalesce(sum(${orderItems.quantity}), 0)::int`,
+            })
+            .from(orderItems)
+            .innerJoin(orders, eq(orderItems.orderId, orders.id))
+            .where(
+              and(
+                eq(orderItems.productId, item.productId),
+                eq(orders.userId, userId),
+                sql`${orders.orderStatus} not in ('cancelled', 'rejected')`,
+              ),
+            )
+
+          const alreadyOrdered = existing?.alreadyOrdered ?? 0
+          const projectedTotal = alreadyOrdered + item.quantity
+
+          if (projectedTotal > prod.maxPerUser) {
+            return NextResponse.json(
+              {
+                error: `Quantity exceeds per-user limit for "${prod.name}". Max ${prod.maxPerUser} per user; you already have ${alreadyOrdered} ordered.`,
+              },
+              { status: 422 },
+            )
+          }
         }
       } else if (item.storeProductId) {
         const [prod] = await db
@@ -215,15 +263,21 @@ export async function POST(request: Request) {
 
     let shippingFeeUsd = 0
     let adminFeeUsd = 0
+    let groupBuyName: string | null = null
 
     if (groupBuyId) {
       const [gb] = await db
-        .select({ shippingFeeUsd: groupBuys.shippingFeeUsd, adminFeeUsd: groupBuys.adminFeeUsd })
+        .select({
+          name: groupBuys.name,
+          shippingFeeUsd: groupBuys.shippingFeeUsd,
+          adminFeeUsd: groupBuys.adminFeeUsd,
+        })
         .from(groupBuys)
         .where(eq(groupBuys.id, groupBuyId))
         .limit(1)
 
       if (gb) {
+        groupBuyName = gb.name
         shippingFeeUsd = parseFloat(gb.shippingFeeUsd)
         adminFeeUsd = parseFloat(gb.adminFeeUsd)
       }
@@ -280,6 +334,29 @@ export async function POST(request: Request) {
         .set({ totalKitsOrdered: sql`${groupBuys.totalKitsOrdered} + ${totalQty}` })
         .where(eq(groupBuys.id, groupBuyId))
     }
+
+    // Order-confirmation email. Fire-and-forget — a Resend failure must not
+    // roll back the order. The shipping fee / admin fee in the email reflect
+    // the snapshot we just inserted, so re-fetching isn't needed.
+    void sendOrderConfirmation({
+      to: user.email,
+      data: {
+        orderTitle: groupBuyName ?? (storeOrder ? 'Store Purchase' : 'Group Buy'),
+        userFullName: user.fullName,
+        orderId: newOrder.id,
+        items: items.map((i) => ({
+          productNameSnapshot: i.productNameSnapshot,
+          quantity: i.quantity,
+          unitPriceUsd: i.unitPriceUsd,
+          lineTotalUsd: i.unitPriceUsd * i.quantity,
+        })),
+        subtotalUsd,
+        shippingFeeUsd,
+        adminFeeUsd,
+        totalUsd,
+        orderUrl: appUrl('/account'),
+      },
+    })
 
     return NextResponse.json(
       {
