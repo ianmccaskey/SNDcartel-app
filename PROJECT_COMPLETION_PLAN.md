@@ -265,13 +265,23 @@ Both items below are **code-complete but operationally inert in production** unt
   4. Optionally override `SOLANA_RPC_URL` in DO env vars with a Helius/Triton/QuickNode endpoint for higher reliability than the public Solana RPC.
   5. Trigger the workflow manually once from the Actions tab to confirm it returns `{"ok": true}` with summary stats. After that, the schedule runs automatically.
 
-- [ ] **Solana real-time webhook (v1.5 — deferred).** Alchemy supports Solana Address Activity webhooks in beta. v1 uses sweep-only for Solana (up to 30 min latency); v1.5 reduces latency to seconds. Implementation gotchas:
-  1. **Monitored entity is the USDC Associated Token Account, not the wallet pubkey.** When admin adds a Solana destination wallet, we have to derive `getAssociatedTokenAddress(USDC_MINT, wallet)` and register the ATA with Alchemy. The wallet pubkey itself never appears in `account_keys` for SPL transfers; only its ATA does.
-  2. **Payload omits `preTokenBalances` / `postTokenBalances`.** The Solana webhook event includes `signature`, `transaction.message.{account_keys, instructions[].{data, program_id_index, accounts}}`, `meta.{fee, pre_balances, post_balances, log_messages}`, and `slot`, but NOT the SPL token balance deltas we use today in the sweep path. Two paths to handle this:
-     - **Recommended: enrichment RPC**. Webhook receiver pulls `getTransaction(signature, { jsonParsed })` to fetch the full tx with token balances, then reuses the existing decode logic from `lib/chain-providers/solana.ts`. Adds 1 RPC call per webhook event. Simple.
-     - **Heavier: binary instruction decode**. Parse the `data` byte string of each SPL Token instruction, reading the transfer amount. No RPC needed. More code, more brittle, but lower-latency.
-  3. **Network identifier** in the payload is `"SOLANA_MAINNET"` (uppercase, underscore). Webhook handler needs a branch on this.
-  4. Activation steps: create the webhook in Alchemy console with `network: SOLANA_MAINNET, webhook_type: ADDRESS_ACTIVITY`, pointed at `/api/webhooks/alchemy`, monitoring the ATAs of all Solana `accepted_payments` wallets.
+- [ ] **Solana real-time webhook via Helius (v1.5 — deferred).** v1 uses sweep-only for Solana (up to 5 min latency post `*/5` cron); v1.5 cuts latency to seconds. **Use Helius enhanced webhooks**, not Alchemy. The Alchemy Solana webhook path was investigated and rejected for v1.5 — see the trade-off analysis at the bottom of this section.
+
+  Why Helius:
+  - **Enhanced payload is self-contained.** `tokenTransfers[]` array carries `fromUserAccount`, `toUserAccount` (owner pubkeys), `fromTokenAccount`, `toTokenAccount` (ATAs), `tokenAmount`, and `mint`. No enrichment RPC needed.
+  - **Monitor at the wallet level.** Helius internally resolves ATAs — we register the destination wallet pubkey from `accepted_payments` directly, no `getAssociatedTokenAddress` derivation in admin UI.
+  - **Free tier (1M credits/month, 10 monitored addresses)** comfortably covers any realistic SNDcartel scale. Developer tier at $49/mo if Solana destination wallet count ever exceeds 10.
+
+  Implementation effort: ~2 hours. The webhook receiver maps `tokenTransfers[]` directly into our `NormalizedTransfer` shape and feeds them through the existing `processNormalizedTransfer` pipeline. New file `app/api/webhooks/helius/route.ts` with HMAC signature verification (Helius uses an `Authorization` header bearer or a `Signing-Key` header — confirm at activation time).
+
+  Activation steps:
+  1. Sign up at https://www.helius.dev — free tier, no card needed.
+  2. Console → Webhooks → create webhook. Type: `enhanced`. Transaction types: `TRANSFER` and `TOKEN_TRANSFER`. Addresses: all destination wallets from `accepted_payments WHERE network = 'solana'`. URL: `https://sndcartel-app-clo2c.ondigitalocean.app/api/webhooks/helius`.
+  3. Copy auth header value Helius generates. Set in DO env vars (encrypted) as `HELIUS_WEBHOOK_AUTH`.
+  4. Update `lib/chain-providers/types.ts` to export from Helius mint identifier (same USDC mint).
+  5. New webhook handler that maps `payload.tokenTransfers` filtered to `mint === USDC_CONTRACT.solana` into `NormalizedTransfer[]`, then `processNormalizedTransfer` each.
+
+  Why not Alchemy Solana webhook: the payload omits `preTokenBalances` / `postTokenBalances`, requiring either an enrichment `getTransaction` call per event (adds latency + RPC cost) or binary SPL Token instruction decoding (brittle). It also monitors token accounts (ATAs), not wallet pubkeys — that requires admin UI to derive ATAs at config time, plus a backfill if the customer's ATA is created on-demand at first receive. Alchemy is still right for EVM where the Address Activity payload IS self-contained; Helius is right for Solana.
 
 - [ ] **Bitcoin (v2 — deferred).** BlockCypher integration for BTC support — separate from Alchemy. See dedicated task chip. v1 customers paying in BTC use the manual TX-hash fallback in the order detail overlay.
 
