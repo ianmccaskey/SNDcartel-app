@@ -265,6 +265,14 @@ Both items below are **code-complete but operationally inert in production** unt
   4. Optionally override `SOLANA_RPC_URL` in DO env vars with a Helius/Triton/QuickNode endpoint for higher reliability than the public Solana RPC.
   5. Trigger the workflow manually once from the Actions tab to confirm it returns `{"ok": true}` with summary stats. After that, the schedule runs automatically.
 
+- [ ] **Solana real-time webhook (v1.5 — deferred).** Alchemy supports Solana Address Activity webhooks in beta. v1 uses sweep-only for Solana (up to 30 min latency); v1.5 reduces latency to seconds. Implementation gotchas:
+  1. **Monitored entity is the USDC Associated Token Account, not the wallet pubkey.** When admin adds a Solana destination wallet, we have to derive `getAssociatedTokenAddress(USDC_MINT, wallet)` and register the ATA with Alchemy. The wallet pubkey itself never appears in `account_keys` for SPL transfers; only its ATA does.
+  2. **Payload omits `preTokenBalances` / `postTokenBalances`.** The Solana webhook event includes `signature`, `transaction.message.{account_keys, instructions[].{data, program_id_index, accounts}}`, `meta.{fee, pre_balances, post_balances, log_messages}`, and `slot`, but NOT the SPL token balance deltas we use today in the sweep path. Two paths to handle this:
+     - **Recommended: enrichment RPC**. Webhook receiver pulls `getTransaction(signature, { jsonParsed })` to fetch the full tx with token balances, then reuses the existing decode logic from `lib/chain-providers/solana.ts`. Adds 1 RPC call per webhook event. Simple.
+     - **Heavier: binary instruction decode**. Parse the `data` byte string of each SPL Token instruction, reading the transfer amount. No RPC needed. More code, more brittle, but lower-latency.
+  3. **Network identifier** in the payload is `"SOLANA_MAINNET"` (uppercase, underscore). Webhook handler needs a branch on this.
+  4. Activation steps: create the webhook in Alchemy console with `network: SOLANA_MAINNET, webhook_type: ADDRESS_ACTIVITY`, pointed at `/api/webhooks/alchemy`, monitoring the ATAs of all Solana `accepted_payments` wallets.
+
 - [ ] **Bitcoin (v2 — deferred).** BlockCypher integration for BTC support — separate from Alchemy. See dedicated task chip. v1 customers paying in BTC use the manual TX-hash fallback in the order detail overlay.
 
 - [ ] **ZeptoMail email provider activation.** Phase 4 wired all 4 customer-touching email callsites (order confirmation, payment verified — auto / manual approve / verify-payment) and `lib/email.ts` was switched from Resend to ZeptoMail (commit `d304252` on the dev branch). Production currently silently no-ops on every email send because `ZEPTOMAIL_API_TOKEN` is not yet set in DO env vars. To activate:

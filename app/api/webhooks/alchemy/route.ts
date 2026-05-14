@@ -7,9 +7,12 @@ import type { NormalizedTransfer } from '@/lib/chain-providers/types'
 // which is what we need for HMAC verification — no extra config required.
 //
 // This receiver only handles EVM Address Activity webhooks (Ethereum, Polygon,
-// Base). Solana payments are picked up by the periodic sweep job in
-// /api/cron/sweep-payments because Alchemy's Solana webhook story is via
-// Custom Webhooks (GraphQL filters) — too much config for v1.
+// Base) today. Solana Address Activity webhooks DO exist (Alchemy added them
+// in beta), but the v1.5 follow-up has to land first — the Solana payload
+// shape (network = "SOLANA_MAINNET") omits preTokenBalances, so adding the
+// path means decoding SPL instructions or making a getTransaction enrichment
+// call per event. Until then, Solana payments are picked up by the periodic
+// sweep job in /api/cron/sweep-payments, which uses getTransaction directly.
 
 export async function POST(request: Request) {
   try {

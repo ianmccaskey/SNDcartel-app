@@ -1,8 +1,13 @@
 import { USDC_CONTRACT, USDC_DECIMALS, type NormalizedTransfer } from './types'
 
 /**
- * Solana payment scanner. v1 polls public RPC every sweep window — Helius
- * webhooks land in v2 if customers complain about ~30 min latency.
+ * Solana payment scanner. v1 polls public RPC every sweep window. Alchemy
+ * does support Solana Address Activity webhooks (in beta), but the v1.5
+ * follow-up is needed before we can use them — see the "Solana webhook
+ * activation" entry in PROJECT_COMPLETION_PLAN.md "Pending operational tasks"
+ * for the reasoning (webhook payload omits preTokenBalances, requires an
+ * enrichment RPC call, and the monitored entity is the USDC Associated Token
+ * Account rather than the wallet pubkey itself).
  *
  * Default RPC: api.mainnet-beta.solana.com (no key required). For higher
  * reliability set SOLANA_RPC_URL to a Helius / Triton / QuickNode endpoint.
