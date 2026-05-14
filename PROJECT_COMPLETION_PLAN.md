@@ -248,6 +248,16 @@ Critical files: [`db/schema.ts`](E:/workspace/SNDcartel-app/db/schema.ts), `driz
 
 ### Pending operational tasks (not code work)
 
+Both items below are **code-complete but operationally inert in production** until configured. The original audit (Section 1) marked them ✅ because the code paths are fully implemented; that was misleading. Track them here.
+
+- [ ] **Alchemy on-chain payment matcher activation.** `lib/alchemy.ts` + `lib/payment-matcher.ts` + `/api/webhooks/alchemy` are all built and HMAC-verified. Without `ALCHEMY_API_KEY` and `ALCHEMY_WEBHOOK_SIGNING_KEY` in DO env vars + Alchemy-side webhooks pointed at production, customers placing orders sit in "Waiting for payment detection" forever — no `payments` row is ever created automatically. This is a **functional blocker for real customer use**, not a polish item. To activate:
+  1. Sign up at https://alchemy.com, create one app per chain you accept (Ethereum / Polygon / Base).
+  2. Console → Webhooks → create an Address Activity webhook per chain. URL: `https://sndcartel-app-clo2c.ondigitalocean.app/api/webhooks/alchemy`. Monitored addresses: every destination wallet from `accepted_payments`.
+  3. Add env vars in DO App Platform (encrypted): `ALCHEMY_API_KEY`, `ALCHEMY_WEBHOOK_SIGNING_KEY`.
+  4. Smoke test by sending $1 USDC to a monitored address; verify a row appears in `alchemy_webhook_events`.
+  5. Document the manual step: every time an admin creates a new `accepted_payments` row, the destination wallet needs to be added to the Alchemy console (or build the auto-registration helper described below).
+  6. **Future code work to consider:** an `addAddressesToWebhook()` helper that calls Alchemy's webhook-update API every time `acceptedPayments.create` runs, so new campaign wallets are automatically monitored. ~1 hour. Recommended once 2+ campaigns are running concurrently.
+
 - [ ] **ZeptoMail email provider activation.** Phase 4 wired all 4 customer-touching email callsites (order confirmation, payment verified — auto / manual approve / verify-payment) and `lib/email.ts` was switched from Resend to ZeptoMail (commit `d304252` on the dev branch). Production currently silently no-ops on every email send because `ZEPTOMAIL_API_TOKEN` is not yet set in DO env vars. To activate:
   1. Buy / use a domain we own (deferred — need to purchase first).
   2. Sign up at https://www.zoho.com/zeptomail/ and create a Mail Agent.

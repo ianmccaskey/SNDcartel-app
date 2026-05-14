@@ -16,6 +16,14 @@ import {
 interface Props {
   orderId: string
   totalUsd: number
+  /**
+   * "rejected" — admin rejected a prior payment; show the warning palette
+   *   and the rejection reason loaded from /payment-status.
+   * "pending" — order is still in pending_payment; show as a neutral
+   *   "Submit your payment" form for customers whose payments haven't been
+   *   auto-matched yet (Alchemy not configured, low-confidence match, etc).
+   */
+  mode?: "rejected" | "pending"
   /** Called after a successful submit so the parent can refresh order state. */
   onSubmitted?: () => void
 }
@@ -48,7 +56,7 @@ const NETWORK_OPTIONS = [
  * endpoint and lets the customer submit a new transaction hash. On success
  * the parent should refetch the order list.
  */
-export function ResubmitPaymentForm({ orderId, totalUsd, onSubmitted }: Props) {
+export function ResubmitPaymentForm({ orderId, totalUsd, mode = "rejected", onSubmitted }: Props) {
   const [rejectionReason, setRejectionReason] = useState<string | null>(null)
   const [reasonLoading, setReasonLoading] = useState(true)
 
@@ -61,6 +69,12 @@ export function ResubmitPaymentForm({ orderId, totalUsd, onSubmitted }: Props) {
   const [success, setSuccess] = useState(false)
 
   const fetchReason = useCallback(async () => {
+    // Only relevant in 'rejected' mode — for 'pending' there's no prior
+    // rejection to display.
+    if (mode !== "rejected") {
+      setReasonLoading(false)
+      return
+    }
     setReasonLoading(true)
     try {
       const res = await fetch(`/api/orders/${orderId}/payment-status`)
@@ -74,7 +88,7 @@ export function ResubmitPaymentForm({ orderId, totalUsd, onSubmitted }: Props) {
     } finally {
       setReasonLoading(false)
     }
-  }, [orderId])
+  }, [mode, orderId])
 
   useEffect(() => {
     fetchReason()
@@ -137,22 +151,49 @@ export function ResubmitPaymentForm({ orderId, totalUsd, onSubmitted }: Props) {
     )
   }
 
+  const isRejected = mode === "rejected"
+  const containerClasses = isRejected
+    ? "border border-orange-500/40 bg-orange-500/10 rounded-lg p-4 space-y-4"
+    : "border border-cyan-500/30 bg-cyan-500/5 rounded-lg p-4 space-y-4"
+  const iconClasses = isRejected
+    ? "h-5 w-5 text-orange-300 mt-0.5 shrink-0"
+    : "h-5 w-5 text-cyan-300 mt-0.5 shrink-0"
+  const titleClasses = isRejected
+    ? "text-orange-300 font-semibold"
+    : "text-cyan-300 font-semibold"
+  const title = isRejected ? "Payment needs attention" : "Submit your payment"
+  const bodyText = isRejected ? (
+    <>
+      Your previous payment couldn&apos;t be verified
+      {totalUsd > 0 && (
+        <>
+          {" "}
+          (expected <span className="font-mono">${totalUsd.toFixed(2)}</span>)
+        </>
+      )}
+      . Submit a new transaction hash and we&apos;ll review it again.
+    </>
+  ) : (
+    <>
+      Once you&apos;ve sent payment from your wallet, paste the transaction hash
+      here so we can record it
+      {totalUsd > 0 && (
+        <>
+          {" "}
+          (expected <span className="font-mono">${totalUsd.toFixed(2)}</span>)
+        </>
+      )}
+      .
+    </>
+  )
+
   return (
-    <div className="border border-orange-500/40 bg-orange-500/10 rounded-lg p-4 space-y-4">
+    <div className={containerClasses}>
       <div className="flex items-start gap-2">
-        <AlertCircle className="h-5 w-5 text-orange-300 mt-0.5 shrink-0" />
+        <AlertCircle className={iconClasses} />
         <div className="flex-1">
-          <p className="text-orange-300 font-semibold">Payment needs attention</p>
-          <p className="text-sm text-white/80 mt-1">
-            Your previous payment couldn&apos;t be verified
-            {totalUsd > 0 && (
-              <>
-                {" "}
-                (expected <span className="font-mono">${totalUsd.toFixed(2)}</span>)
-              </>
-            )}
-            . Submit a new transaction hash and we&apos;ll review it again.
-          </p>
+          <p className={titleClasses}>{title}</p>
+          <p className="text-sm text-white/80 mt-1">{bodyText}</p>
           {!reasonLoading && rejectionReason && (
             <p className="text-xs text-white/60 mt-2">
               <span className="font-semibold text-white/80">Reason:</span> {rejectionReason}
@@ -224,8 +265,10 @@ export function ResubmitPaymentForm({ orderId, totalUsd, onSubmitted }: Props) {
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Submitting…
             </>
-          ) : (
+          ) : isRejected ? (
             "Submit new payment"
+          ) : (
+            "Submit payment"
           )}
         </Button>
       </form>

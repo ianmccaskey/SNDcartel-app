@@ -132,10 +132,18 @@ export function OrderDetailOverlay({ order, onClose }: OrderDetailOverlayProps) 
 
           {/* Content */}
           <div className="p-6 space-y-6">
-            {/* Resubmit Payment — shown only when admin rejected the most
-                recent payment. Customer can submit a new TX hash inline. */}
-            {order.orderStatus === "payment_rejected" && (
-              <ResubmitPaymentForm orderId={order.id} totalUsd={order.totalUsd} />
+            {/* Manual TX-hash submission. Shown for:
+                  - payment_rejected: customer needs to resubmit with a new hash
+                  - pending_payment: fallback for when Alchemy auto-match hasn't
+                    fired (Alchemy not yet configured, customer used an
+                    unmonitored chain, transaction below threshold, etc.) */}
+            {(order.orderStatus === "payment_rejected" ||
+              order.orderStatus === "pending_payment") && (
+              <ResubmitPaymentForm
+                orderId={order.id}
+                totalUsd={order.totalUsd}
+                mode={order.orderStatus === "payment_rejected" ? "rejected" : "pending"}
+              />
             )}
 
             {/* Payments Section */}
