@@ -1,8 +1,11 @@
 name: Sweep payments
 
-# Runs every 30 minutes and pokes the production sweep endpoint.
-# The endpoint itself decides whether there's anything to sweep based on the
-# set of active group_buys.
+# Runs every 5 minutes (GitHub Actions cron minimum) and pokes the production
+# sweep endpoint. The endpoint itself decides whether there's anything to sweep
+# based on the set of active group_buys.
+#
+# Cost: well under Alchemy free tier even at this frequency — see
+# PROJECT_COMPLETION_PLAN.md "Pending operational tasks" for the math.
 #
 # Required GitHub Actions secrets:
 #   CRON_SECRET — the shared bearer token. Must match the CRON_SECRET set in
@@ -14,9 +17,10 @@ name: Sweep payments
 
 on:
   schedule:
-    # Every 30 minutes. GitHub Actions cron is UTC and has up to a few
-    # minutes of jitter — acceptable for a backup sweep.
-    - cron: '*/30 * * * *'
+    # Every 5 minutes (GitHub Actions cron minimum granularity). UTC, with up
+    # to a few minutes of jitter during platform load. The 6h sweep window
+    # inside the endpoint covers any missed/late runs idempotently.
+    - cron: '*/5 * * * *'
   workflow_dispatch: # allow manual trigger from the Actions tab
 
 jobs:
