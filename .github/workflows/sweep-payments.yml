@@ -1,0 +1,37 @@
+name: Sweep payments
+
+# Runs every 30 minutes and pokes the production sweep endpoint.
+# The endpoint itself decides whether there's anything to sweep based on the
+# set of active group_buys.
+#
+# Required GitHub Actions secrets:
+#   CRON_SECRET — the shared bearer token. Must match the CRON_SECRET set in
+#                 DigitalOcean App Platform environment variables. Generate
+#                 once via `openssl rand -hex 32`.
+#
+# To pause the schedule without removing the file, comment out the schedule
+# trigger below.
+
+on:
+  schedule:
+    # Every 30 minutes. GitHub Actions cron is UTC and has up to a few
+    # minutes of jitter — acceptable for a backup sweep.
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # allow manual trigger from the Actions tab
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Invoke sweep endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail \
+            --silent \
+            --show-error \
+            --max-time 240 \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -X POST \
+            https://sndcartel-app-clo2c.ondigitalocean.app/api/cron/sweep-payments

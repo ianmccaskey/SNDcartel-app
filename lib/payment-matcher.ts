@@ -13,6 +13,16 @@ export interface AlchemyTransfer {
   network: string
 }
 
+/**
+ * Wallet-address equality across chain families.
+ * EVM (Ethereum/Polygon/Base/Arbitrum): hex, case-insensitive.
+ * Solana: base58, case-sensitive — case carries meaning, lowercasing breaks it.
+ */
+function walletsEqual(a: string, b: string, network: string): boolean {
+  if (network === 'solana') return a === b
+  return a.toLowerCase() === b.toLowerCase()
+}
+
 export interface PaymentMatch {
   orderId: string
   confidence: number // 0–100
@@ -49,8 +59,8 @@ export async function matchPaymentToOrders(transfer: AlchemyTransfer): Promise<P
     let confidence = 0
     const reasons: string[] = []
 
-    // Wallet match
-    if (transfer.fromAddress.toLowerCase() === order.customerWalletAddress.toLowerCase()) {
+    // Wallet match. EVM uses case-insensitive hex; Solana is base58 + case-sensitive.
+    if (walletsEqual(transfer.fromAddress, order.customerWalletAddress, transfer.network)) {
       confidence += 40
       reasons.push('wallet_exact_match')
     } else {

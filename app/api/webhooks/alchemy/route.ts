@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
-import { db } from '@/db'
-import { orders, alchemyWebhookEvents } from '@/db/schema'
 import { verifyAlchemySignature, USDC_CONTRACTS, usdcRawToUsd } from '@/lib/alchemy'
-import { matchPaymentToOrders, AUTO_APPROVE_THRESHOLD, type AlchemyTransfer } from '@/lib/payment-matcher'
-import { notifyPaymentVerified } from '@/lib/order-emails'
-import { transitionOrderStatus } from '@/lib/order-status'
+import { processNormalizedTransfer } from '@/lib/chain-providers/process-transfer'
+import type { NormalizedTransfer } from '@/lib/chain-providers/types'
 
 // App Router automatically gives us the raw body via request.text(),
 // which is what we need for HMAC verification — no extra config required.
+//
+// This receiver only handles EVM Address Activity webhooks (Ethereum, Polygon,
+// Base). Solana payments are picked up by the periodic sweep job in
+// /api/cron/sweep-payments because Alchemy's Solana webhook story is via
+// Custom Webhooks (GraphQL filters) — too much config for v1.
 
 export async function POST(request: Request) {
   try {
@@ -32,7 +33,14 @@ export async function POST(request: Request) {
     const webhookId: string = payload?.webhookId ?? 'unknown'
     const network: string = (payload?.event?.network ?? 'ETH_MAINNET').toLowerCase().replace('_mainnet', '')
 
-    const results: Array<{ txHash: string; matched: boolean; orderId?: string; confidence?: number }> = []
+    const results: Array<{
+      transactionHash: string
+      matched: boolean
+      orderId?: string | null
+      confidence?: number | null
+      wrongChain?: boolean
+      duplicate?: boolean
+    }> = []
 
     for (const event of activity) {
       // Only process ERC-20 token transfers (USDC)
@@ -55,84 +63,26 @@ export async function POST(request: Request) {
       const valueUsd = usdcRawToUsd(valueRaw)
       const blockNumber: number = parseInt(event.blockNum ?? '0x0', 16)
 
-      // Avoid duplicate processing
-      const existing = await db
-        .select({ id: alchemyWebhookEvents.id })
-        .from(alchemyWebhookEvents)
-        .where(eq(alchemyWebhookEvents.transactionHash, txHash))
-        .limit(1)
-
-      if (existing.length > 0) {
-        results.push({ txHash, matched: false })
-        continue
-      }
-
-      const transfer: AlchemyTransfer = {
+      const normalized: NormalizedTransfer = {
+        network: network as NormalizedTransfer['network'],
         transactionHash: txHash,
         blockNumber,
         fromAddress,
         toAddress,
         tokenAddress,
-        valueRaw,
-        network,
+        amountUsd: valueUsd,
       }
 
-      // Run payment matching
-      const matches = await matchPaymentToOrders(transfer)
-      const topMatch = matches[0]
+      const result = await processNormalizedTransfer(normalized, 'webhook', webhookId)
 
-      // Insert webhook event audit record
-      const [webhookEvent] = await db
-        .insert(alchemyWebhookEvents)
-        .values({
-          webhookId,
-          eventType: 'ADDRESS_ACTIVITY',
-          transactionHash: txHash,
-          blockNumber,
-          fromAddress,
-          toAddress,
-          tokenAddress,
-          valueRaw,
-          valueUsd: valueUsd.toFixed(2),
-          network,
-          processed: false,
-          matchedOrderId: topMatch ? topMatch.orderId : null,
-          matchConfidence: topMatch ? topMatch.confidence : null,
-          matchReasons: topMatch ? topMatch.reasons : null,
-        })
-        .returning()
-
-      if (!topMatch || topMatch.confidence < AUTO_APPROVE_THRESHOLD) {
-        // Low confidence or no match — leave for admin review
-        await db
-          .update(alchemyWebhookEvents)
-          .set({ processed: true })
-          .where(eq(alchemyWebhookEvents.id, webhookEvent.id))
-
-        results.push({ txHash, matched: false })
-        continue
-      }
-
-      // Auto-approve: advance order status + log history. changedBy is null
-      // since this is a system-driven transition (no admin user involved).
-      await transitionOrderStatus({
-        orderId: topMatch.orderId,
-        toStatus: 'payment_verified',
-        changedBy: null,
-        reason: `Alchemy auto-match confidence ${topMatch.confidence}`,
-        extraUpdates: { paymentStatus: 'verified' },
+      results.push({
+        transactionHash: result.transactionHash,
+        matched: result.matchedOrderId !== null && !result.wrongChain,
+        orderId: result.matchedOrderId,
+        confidence: result.matchConfidence,
+        wrongChain: result.wrongChain,
+        duplicate: result.duplicate,
       })
-
-      await db
-        .update(alchemyWebhookEvents)
-        .set({ processed: true })
-        .where(eq(alchemyWebhookEvents.id, webhookEvent.id))
-
-      // Customer notification — fire-and-forget so email latency / failures
-      // never block the webhook ack to Alchemy.
-      void notifyPaymentVerified(topMatch.orderId, 'auto')
-
-      results.push({ txHash, matched: true, orderId: topMatch.orderId, confidence: topMatch.confidence })
     }
 
     return NextResponse.json({ ok: true, processed: results.length, results })
