@@ -5,6 +5,7 @@ import { payments, orders } from '@/db/schema'
 import { canManageGroupBuy, requireAdminOrOperator } from '@/lib/permissions'
 import { logAdminAction } from '@/lib/audit'
 import { notifyPaymentVerified } from '@/lib/order-emails'
+import { transitionOrderStatus } from '@/lib/order-status'
 import { z } from 'zod'
 
 const approveSchema = z.object({
@@ -71,15 +72,14 @@ export async function PATCH(
       })
       .where(eq(payments.id, id))
 
-    // Update order to payment_verified
-    await db
-      .update(orders)
-      .set({
-        orderStatus: 'payment_verified',
-        paymentStatus: 'verified',
-        updatedAt: new Date(),
-      })
-      .where(eq(orders.id, payment.orderId))
+    // Update order to payment_verified + write history row atomically.
+    await transitionOrderStatus({
+      orderId: payment.orderId,
+      toStatus: 'payment_verified',
+      changedBy: session.user.id,
+      reason: 'Admin approved payment',
+      extraUpdates: { paymentStatus: 'verified' },
+    })
 
     await logAdminAction({
       adminUserId: session.user.id,

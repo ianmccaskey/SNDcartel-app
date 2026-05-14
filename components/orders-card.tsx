@@ -27,6 +27,7 @@ export interface ApiOrderPayment {
   tokenSymbol: string
   explorerUrl: string
   status: string
+  rejectionReason?: string | null
   createdAt: string
 }
 
@@ -79,6 +80,8 @@ function getStatusStyle(orderStatus: string) {
       return "bg-purple-500/20 text-purple-400 border-purple-500/50"
     case "completed":
       return "bg-teal-500/20 text-teal-400 border-teal-500/50"
+    case "payment_rejected":
+      return "bg-orange-500/20 text-orange-300 border-orange-500/50"
     case "rejected":
     case "cancelled":
       return "bg-red-500/20 text-red-400 border-red-500/50"
@@ -96,6 +99,7 @@ function getStatusIcon(orderStatus: string) {
       return <CheckCircle2 className="h-3 w-3" />
     case "shipped":
       return <Truck className="h-3 w-3" />
+    case "payment_rejected":
     case "rejected":
     case "cancelled":
       return <XCircle className="h-3 w-3" />

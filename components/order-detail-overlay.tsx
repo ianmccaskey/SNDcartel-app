@@ -4,6 +4,7 @@ import { X, ExternalLink, Package, CheckCircle2, Clock, Truck, XCircle, RotateCc
 import { motion, AnimatePresence } from "framer-motion"
 import type { ApiOrder } from "./orders-card"
 import { Badge } from "@/components/ui/badge"
+import { ResubmitPaymentForm } from "./resubmit-payment-form"
 
 interface OrderDetailOverlayProps {
   order: ApiOrder | null
@@ -24,6 +25,8 @@ function getStatusStyle(orderStatus: string) {
       return "bg-purple-500/20 text-purple-400 border-purple-500/50"
     case "completed":
       return "bg-teal-500/20 text-teal-400 border-teal-500/50"
+    case "payment_rejected":
+      return "bg-orange-500/20 text-orange-300 border-orange-500/50"
     case "rejected":
     case "cancelled":
       return "bg-red-500/20 text-red-400 border-red-500/50"
@@ -41,6 +44,7 @@ function getStatusIcon(orderStatus: string) {
       return <CheckCircle2 className="h-4 w-4" />
     case "shipped":
       return <Truck className="h-4 w-4" />
+    case "payment_rejected":
     case "rejected":
     case "cancelled":
       return <XCircle className="h-4 w-4" />
@@ -128,6 +132,12 @@ export function OrderDetailOverlay({ order, onClose }: OrderDetailOverlayProps) 
 
           {/* Content */}
           <div className="p-6 space-y-6">
+            {/* Resubmit Payment — shown only when admin rejected the most
+                recent payment. Customer can submit a new TX hash inline. */}
+            {order.orderStatus === "payment_rejected" && (
+              <ResubmitPaymentForm orderId={order.id} totalUsd={order.totalUsd} />
+            )}
+
             {/* Payments Section */}
             {order.payments && order.payments.length > 0 && (
               <div className="bg-white/5 border border-white/10 rounded-lg p-4">

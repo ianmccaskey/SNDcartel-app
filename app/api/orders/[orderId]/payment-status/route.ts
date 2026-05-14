@@ -45,6 +45,7 @@ export async function GET(
         txHash: payments.txHash,
         status: payments.status,
         explorerUrl: payments.explorerUrl,
+        rejectionReason: payments.rejectionReason,
         createdAt: payments.createdAt,
       })
       .from(payments)
@@ -77,6 +78,7 @@ export async function GET(
             txHash: latestPayment.txHash,
             status: latestPayment.status,
             explorerUrl: latestPayment.explorerUrl,
+            rejectionReason: latestPayment.rejectionReason,
             createdAt: latestPayment.createdAt.toISOString(),
           }
         : null,

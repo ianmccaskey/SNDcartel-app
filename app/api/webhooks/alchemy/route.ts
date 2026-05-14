@@ -5,6 +5,7 @@ import { orders, alchemyWebhookEvents } from '@/db/schema'
 import { verifyAlchemySignature, USDC_CONTRACTS, usdcRawToUsd } from '@/lib/alchemy'
 import { matchPaymentToOrders, AUTO_APPROVE_THRESHOLD, type AlchemyTransfer } from '@/lib/payment-matcher'
 import { notifyPaymentVerified } from '@/lib/order-emails'
+import { transitionOrderStatus } from '@/lib/order-status'
 
 // App Router automatically gives us the raw body via request.text(),
 // which is what we need for HMAC verification — no extra config required.
@@ -112,15 +113,15 @@ export async function POST(request: Request) {
         continue
       }
 
-      // Auto-approve: update order status
-      await db
-        .update(orders)
-        .set({
-          orderStatus: 'payment_verified',
-          paymentStatus: 'verified',
-          updatedAt: new Date(),
-        })
-        .where(eq(orders.id, topMatch.orderId))
+      // Auto-approve: advance order status + log history. changedBy is null
+      // since this is a system-driven transition (no admin user involved).
+      await transitionOrderStatus({
+        orderId: topMatch.orderId,
+        toStatus: 'payment_verified',
+        changedBy: null,
+        reason: `Alchemy auto-match confidence ${topMatch.confidence}`,
+        extraUpdates: { paymentStatus: 'verified' },
+      })
 
       await db
         .update(alchemyWebhookEvents)

@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { orders, users, groupBuys } from '@/db/schema'
-import { sendPaymentVerified } from '@/lib/email'
+import { sendPaymentVerified, sendPaymentRejected } from '@/lib/email'
 
 function appUrl(path: string): string {
   const base = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
@@ -55,5 +55,48 @@ export async function notifyPaymentVerified(
   } catch (err) {
     // Email path must never break verification.
     console.error('notifyPaymentVerified failed:', err)
+  }
+}
+
+/**
+ * Mirror of `notifyPaymentVerified` for the rejection path. Fetches the order
+ * + user + group buy in one round trip and fires the payment-rejected email.
+ * Fire-and-forget — call sites should `void` the returned promise.
+ */
+export async function notifyPaymentRejected(orderId: string, reason: string): Promise<void> {
+  try {
+    const [row] = await db
+      .select({
+        orderId: orders.id,
+        totalUsd: orders.totalUsd,
+        storeOrder: orders.storeOrder,
+        email: users.email,
+        fullName: users.fullName,
+        groupBuyName: groupBuys.name,
+      })
+      .from(orders)
+      .innerJoin(users, eq(orders.userId, users.id))
+      .leftJoin(groupBuys, eq(orders.groupBuyId, groupBuys.id))
+      .where(eq(orders.id, orderId))
+      .limit(1)
+
+    if (!row) {
+      console.warn(`notifyPaymentRejected: order ${orderId} not found`)
+      return
+    }
+
+    await sendPaymentRejected({
+      to: row.email,
+      data: {
+        orderTitle: row.groupBuyName ?? (row.storeOrder ? 'Store Purchase' : 'Group Buy'),
+        userFullName: row.fullName,
+        orderId: row.orderId,
+        totalUsd: parseFloat(row.totalUsd),
+        reason,
+        orderUrl: appUrl('/account'),
+      },
+    })
+  } catch (err) {
+    console.error('notifyPaymentRejected failed:', err)
   }
 }

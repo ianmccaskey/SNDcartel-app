@@ -13,6 +13,11 @@ import {
   paymentVerifiedText,
   type PaymentVerifiedData,
 } from '@/templates/payment-verified'
+import {
+  paymentRejectedHtml,
+  paymentRejectedText,
+  type PaymentRejectedData,
+} from '@/templates/payment-rejected'
 
 // ZeptoMail transactional email (Zoho).
 //
@@ -157,5 +162,21 @@ export async function sendPaymentVerified({
     html: paymentVerifiedHtml(data),
     text: paymentVerifiedText(data),
     context: 'payment_verified',
+  })
+}
+
+export async function sendPaymentRejected({
+  to,
+  data,
+}: {
+  to: string
+  data: PaymentRejectedData
+}): Promise<void> {
+  await send({
+    to,
+    subject: `Payment needs attention — ${data.orderTitle}`,
+    html: paymentRejectedHtml(data),
+    text: paymentRejectedText(data),
+    context: 'payment_rejected',
   })
 }

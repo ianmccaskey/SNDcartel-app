@@ -5,6 +5,7 @@ import { orders, payments, adminActions } from '@/db/schema'
 import { canManageGroupBuy, requireAdminOrOperator } from '@/lib/permissions'
 import { buildExplorerUrl } from '@/lib/alchemy'
 import { notifyPaymentVerified } from '@/lib/order-emails'
+import { transitionOrderStatus } from '@/lib/order-status'
 import { z } from 'zod'
 
 const verifySchema = z.object({
@@ -109,16 +110,17 @@ export async function POST(
       .orderBy(payments.createdAt)
       .limit(1)
 
-    // Update order status to payment_verified
-    await db
-      .update(orders)
-      .set({
-        orderStatus: 'payment_verified',
+    // Update order status to payment_verified + history.
+    await transitionOrderStatus({
+      orderId,
+      toStatus: 'payment_verified',
+      changedBy: session.user.id,
+      reason: 'Admin manually verified payment via TX hash',
+      extraUpdates: {
         paymentStatus: 'verified',
         adminNotes: adminNotes ?? null,
-        updatedAt: new Date(),
-      })
-      .where(eq(orders.id, orderId))
+      },
+    })
 
     // Audit log
     await db.insert(adminActions).values({

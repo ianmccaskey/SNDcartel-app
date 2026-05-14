@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { orders, orderItems, groupBuys, users, payments } from '@/db/schema'
 import { canManageGroupBuy, requireAdminOrOperator } from '@/lib/permissions'
 import { logAdminAction } from '@/lib/audit'
+import { transitionOrderStatus } from '@/lib/order-status'
 import { z } from 'zod'
 
 const patchSchema = z.object({
@@ -174,16 +175,26 @@ export async function PATCH(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const updateData: Partial<{ orderStatus: string; adminNotes: string; updatedAt: Date }> = {
+    // Split the update so order_status changes go through transitionOrderStatus
+    // (which logs to order_status_history). Non-status updates (adminNotes)
+    // still happen here as a direct UPDATE.
+    const nonStatusUpdate: Partial<{ adminNotes: string; updatedAt: Date }> = {
       updatedAt: new Date(),
     }
+    if (parsed.data.adminNotes !== undefined) nonStatusUpdate.adminNotes = parsed.data.adminNotes
 
-    if (parsed.data.orderStatus !== undefined) updateData.orderStatus = parsed.data.orderStatus
-    if (parsed.data.adminNotes !== undefined) updateData.adminNotes = parsed.data.adminNotes
+    if (parsed.data.orderStatus !== undefined && parsed.data.orderStatus !== existing.orderStatus) {
+      await transitionOrderStatus({
+        orderId,
+        toStatus: parsed.data.orderStatus as Parameters<typeof transitionOrderStatus>[0]['toStatus'],
+        changedBy: session.user.id,
+        reason: 'Admin updated order status',
+      })
+    }
 
     const [updated] = await db
       .update(orders)
-      .set(updateData)
+      .set(nonStatusUpdate)
       .where(eq(orders.id, orderId))
       .returning()
 
