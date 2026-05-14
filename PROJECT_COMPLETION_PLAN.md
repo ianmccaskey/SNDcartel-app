@@ -244,7 +244,19 @@ Critical files: [`db/schema.ts`](E:/workspace/SNDcartel-app/db/schema.ts), `driz
 - [ ] Permission tests — log in as each role, confirm boundaries
 - [ ] Mobile viewport sweep (we've been at 500px; need 360–414 coverage)
 - [ ] End-to-end happy path: admin creates GB → assigns operator → operator adds product → customer places order → Alchemy auto-verifies → operator marks shipped → customer sees tracking → operator closes campaign → admin reads report
-- [ ] Production readiness checklist (env vars, migrations applied, Alchemy webhook pointed at prod, Resend domain verified)
+- [ ] Production readiness checklist (env vars, migrations applied, Alchemy webhook pointed at prod, ZeptoMail domain verified — see "Pending operational tasks" below)
+
+### Pending operational tasks (not code work)
+
+- [ ] **ZeptoMail email provider activation.** Phase 4 wired all 4 customer-touching email callsites (order confirmation, payment verified — auto / manual approve / verify-payment) and `lib/email.ts` was switched from Resend to ZeptoMail (commit `d304252` on the dev branch). Production currently silently no-ops on every email send because `ZEPTOMAIL_API_TOKEN` is not yet set in DO env vars. To activate:
+  1. Buy / use a domain we own (deferred — need to purchase first).
+  2. Sign up at https://www.zoho.com/zeptomail/ and create a Mail Agent.
+  3. Add the domain in ZeptoMail console → Domains → add the 3 DNS records (SPF, DKIM, DMARC) at the registrar → click Verify.
+  4. Add and verify a sender email address (default in code is `noreply@<your-domain>` but any verified address works via `ZEPTOMAIL_FROM_ADDRESS` override).
+  5. Grab the API token from Mail Agents → Setup Info → Send Mail API.
+  6. Add to DO App Platform env vars (encrypted): `ZEPTOMAIL_API_TOKEN`, `ZEPTOMAIL_FROM_ADDRESS` (optional override).
+  7. Fast-forward the dev branch tip (currently includes `d304252`) to the deploy branch so the latest swap is live.
+  8. Place a test order to confirm the email arrives and shows up in ZeptoMail console → Logs.
 
 ---
 
